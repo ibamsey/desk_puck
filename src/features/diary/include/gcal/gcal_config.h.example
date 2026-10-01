@@ -1,0 +1,8 @@
+#ifndef GCAL_CONFIG_PRIVATE_H
+#define GCAL_CONFIG_PRIVATE_H
+
+/** Copy this file to gcal_config_private.h (same folder) and paste your OAuth client values. */
+#define GCAL_CLIENT_ID "your-client-id.apps.googleusercontent.com"
+#define GCAL_CLIENT_SECRET "your-client-secret"
+
+#endif // GCAL_CONFIG_PRIVATE_H

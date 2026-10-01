@@ -1,0 +1,53 @@
+{
+  "id": "classic-chrono",
+  "name": "Classic Chrono",
+  "version": 1,
+  "pivot": {
+    "x": 120,
+    "y": 120
+  },
+  "behaviour": {
+    "chronograph": true
+  },
+  "hands": {
+    "hour": {
+      "file": "hour.png",
+      "length_px": 50,
+      "offset_deg": 0
+    },
+    "minute": {
+      "file": "minute.png",
+      "length_px": 76,
+      "offset_deg": 0
+    }
+  },
+  "subdials": [
+    {
+      "role": "wall_second",
+      "file": "sub_wall_sec.png",
+      "subdial": {
+        "x": 52,
+        "y": 120
+      }
+    },
+    {
+      "role": "chrono_minute",
+      "file": "sub_chrono_min.png",
+      "subdial": {
+        "x": 120,
+        "y": 52
+      }
+    },
+    {
+      "role": "chrono_second",
+      "file": "sub_chrono_sec.png",
+      "subdial": {
+        "x": 120,
+        "y": 168
+      }
+    }
+  ],
+  "hub": {
+    "file": "hub.png"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "demo",
+  "name": "Demo Pack",
+  "version": 1,
+  "pivot": {
+    "x": 120,
+    "y": 120
+  },
+  "hands": {
+    "hour": {
+      "file": "hour.png",
+      "length_px": 52,
+      "offset_deg": 0
+    },
+    "minute": {
+      "file": "minute.png",
+      "length_px": 78,
+      "offset_deg": 0
+    },
+    "second": {
+      "file": "second.png",
+      "length_px": 88,
+      "offset_deg": 0,
+      "optional": true
+    }
+  },
+  "hub": {
+    "file": "hub.png"
+  }
+}
