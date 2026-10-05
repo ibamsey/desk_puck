@@ -9,10 +9,14 @@ class AssetFaceRuntime {
 public:
     bool load(int asset_index, const AssetFaceMeta* meta);
     void unload();
+    /** Frees the optional smooth-tick underlay (e.g. when leaving the clock feature). */
+    void release_underlay();
+    bool ensure_underlay();
     bool is_loaded() const { return _dial != nullptr; }
     int loaded_asset_index() const { return _asset_index; }
 
-    void draw(lgfx::LGFX_Device& gfx, const AnalogClockState& state);
+    void draw(lgfx::LGFX_Device& gfx, const AnalogClockState& state, ClockHandMask mask,
+              const AnalogClockState* prev_state);
 
 private:
     struct HandBuffer {
@@ -34,13 +38,34 @@ private:
 
     bool load_hand_chunk(const uint8_t* blob, size_t& offset, const WatchFaceHandMeta& meta, HandBuffer& out);
     bool load_hub_chunk(const uint8_t* blob, size_t& offset, const WatchFaceHubMeta& meta, HandBuffer& out);
-    void draw_hand(lgfx::LGFX_Device& gfx, const HandBuffer& hand, float angle_deg) const;
-    void draw_hand_at(lgfx::LGFX_Device& gfx, const HandBuffer& hand, int pivot_x, int pivot_y,
+    void draw_hand(lgfx::LovyanGFX& gfx, const HandBuffer& hand, float angle_deg) const;
+    void draw_hand_at(lgfx::LovyanGFX& gfx, const HandBuffer& hand, int pivot_x, int pivot_y,
                       float angle_deg) const;
-    void draw_hub(lgfx::LGFX_Device& gfx) const;
+    void draw_hub(lgfx::LovyanGFX& gfx) const;
     float subdial_angle(SubdialRole role, const AnalogClockState& state) const;
+    int hand_cover_radius(const HandBuffer& hand) const;
+    void blit_buffer_rect(lgfx::LGFX_Device& gfx, const uint16_t* src, int x, int y, int w, int h) const;
+    void restore_subdial_patch(lgfx::LGFX_Device& gfx, const LoadedSubdial& sd) const;
+    void rebuild_underlay(const AnalogClockState& state);
+    void second_sweep_union_rect(const AnalogClockState& state, const AnalogClockState& prev, int& ux,
+                                 int& uy, int& uw, int& uh) const;
+    void rect_union(int& ux, int& uy, int& uw, int& uh, int x, int y, int w, int h) const;
+    void unpaint_hand_from_background(lgfx::LGFX_Device& gfx, const HandBuffer& hand, int pivot_x, int pivot_y,
+                                      float angle_deg, const uint16_t* bg_rgb565) const;
+    void patch_underlay_hands(lgfx::LGFX_Device& gfx, const AnalogClockState& state, const AnalogClockState& prev,
+                              ClockHandMask mask) const;
+    void draw_second_sweep(lgfx::LGFX_Device& gfx, const AnalogClockState& state, const AnalogClockState& prev,
+                           bool draw_hub_cap) const;
+    void draw_center_wall_hands(lgfx::LovyanGFX& gfx, const AnalogClockState& state, bool hour, bool minute,
+                                bool second) const;
+    void hand_dirty_rect(int pivot_x, int pivot_y, const HandBuffer& hand, float angle_deg, int& out_x,
+                         int& out_y, int& out_w, int& out_h) const;
 
     uint16_t* _dial = nullptr;
+    uint16_t* _underlay = nullptr;
+    bool _underlay_valid = false;
+    float _underlay_hour_angle = -999.0f;
+    float _underlay_minute_angle = -999.0f;
     HandBuffer _hour;
     HandBuffer _minute;
     HandBuffer _second;

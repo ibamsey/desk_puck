@@ -34,16 +34,26 @@ void draw_static(LGFX_Device& lcd) {
     lcd.drawString("9", kCenterX - 78, kCenterY);
 }
 
-void draw_hands(LGFX_Device& lcd, const AnalogClockState& state, bool erase) {
+static bool mask_has(ClockHandMask mask, ClockHandMask bit) {
+    return (static_cast<uint8_t>(mask) & static_cast<uint8_t>(bit)) != 0;
+}
+
+void draw_hands(LGFX_Device& lcd, const AnalogClockState& state, bool erase, ClockHandMask mask) {
     const uint16_t hour_c = erase ? 0x10A2 : 0xC618;
     const uint16_t min_c = erase ? 0x10A2 : 0xFFFF;
     const uint16_t sec_c = erase ? 0x10A2 : 0x07FF;
 
-    draw_hand_triangle(lcd, kCenterX, kCenterY, state.hour_angle, 52.0f, 8.0f, hour_c);
-    draw_hand_line(lcd, kCenterX, kCenterY, state.minute_angle, 78.0f, 3, min_c);
-    draw_second_hand(lcd, kCenterX, kCenterY, state.second_angle, 18.0f, 88.0f, sec_c);
+    if (mask_has(mask, ClockHandMask::Hour)) {
+        draw_hand_triangle(lcd, kCenterX, kCenterY, state.hour_angle, 52.0f, 8.0f, hour_c);
+    }
+    if (mask_has(mask, ClockHandMask::Minute)) {
+        draw_hand_line(lcd, kCenterX, kCenterY, state.minute_angle, 78.0f, 3, min_c);
+    }
+    if (mask_has(mask, ClockHandMask::Second)) {
+        draw_second_hand(lcd, kCenterX, kCenterY, state.second_angle, 18.0f, 88.0f, sec_c);
+    }
 
-    if (!erase) {
+    if (!erase && mask_has(mask, ClockHandMask::Hub)) {
         lcd.fillCircle(kCenterX, kCenterY, 5, 0x3186);
         lcd.fillCircle(kCenterX, kCenterY, 2, 0xFFFF);
     }
