@@ -2,10 +2,14 @@
 
 #include "clock/generated/watch_face_manifest.h"
 
+#include <cstring>
+
 extern const ClockFace* clock_face_midnight();
+extern const ClockFace* clock_face_classic_digital();
 
 static const ClockFaceEntry kProcedural[] = {
     {"midnight", "Midnight", ClockFaceKind::Procedural, {.procedural = nullptr}},
+    {"classic-digital", "Classic Digital", ClockFaceKind::Procedural, {.procedural = nullptr}},
 };
 
 static const ClockFaceEntry* build_registry(size_t& out_count) {
@@ -21,7 +25,11 @@ static const ClockFaceEntry* build_registry(size_t& out_count) {
     count = 0;
     for (size_t i = 0; i < sizeof(kProcedural) / sizeof(kProcedural[0]); ++i) {
         entries[count] = kProcedural[i];
-        entries[count].procedural = clock_face_midnight();
+        if (strcmp(kProcedural[i].id, "midnight") == 0) {
+            entries[count].procedural = clock_face_midnight();
+        } else {
+            entries[count].procedural = clock_face_classic_digital();
+        }
         ++count;
     }
 

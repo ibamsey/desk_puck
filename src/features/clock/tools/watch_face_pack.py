@@ -26,16 +26,67 @@ FLAG_HAS_SECOND = 0x0001
 FLAG_HAS_HUB = 0x0002
 FLAG_HAS_CHRONO = 0x0004
 FLAG_IS_CHRONOGRAPH = 0x0008
+FLAG_HAS_DIGITAL = 0x0010
+FLAG_HAS_WEATHER = 0x0020
+
+WEATHER_ICON_MAX = 64
 
 HAND_MAX_W = 48
 HAND_MAX_H = 110
 HUB_MAX = 32
+DIAL_PIVOT_USE_FACE = -32768
 MAX_SUBDIALS = 3
 SUBDIAL_ROLE = {
     "chrono_second": 0,
     "chrono_minute": 1,
     "wall_second": 2,
 }
+
+DEFAULT_DIGITAL_READOUT = {
+    "time_x": 120,
+    "time_y": 108,
+    "date_x": 120,
+    "date_y": 132,
+    "time_color": 0xFFFF,
+    "date_color": 0x9CD3,
+    "bg_color": 0x1084,
+    "time_text_size": 2,
+    "date_text_size": 1,
+    "flags": 0x03,  # show time + date, short date format
+}
+
+DIGITAL_FLAG_SHOW_TIME = 0x01
+DIGITAL_FLAG_SHOW_DATE = 0x02
+DIGITAL_DATE_FORMAT_DAY_DD = 0x04
+DIGITAL_DATE_FORMAT_DAY_D = 0x08
+DIGITAL_TIME_FORMAT_12H = 0x10
+DIGITAL_DATE_FORMAT_WEEKDAY_MONTH_DAY = 0x20
+
+
+def digital_flags_from_json(raw: dict) -> int:
+    flags = int(raw.get("flags", DEFAULT_DIGITAL_READOUT["flags"]))
+    if "show_time" in raw:
+        if raw["show_time"]:
+            flags |= DIGITAL_FLAG_SHOW_TIME
+        else:
+            flags &= ~DIGITAL_FLAG_SHOW_TIME
+    if "show_date" in raw:
+        if raw["show_date"]:
+            flags |= DIGITAL_FLAG_SHOW_DATE
+        else:
+            flags &= ~DIGITAL_FLAG_SHOW_DATE
+    fmt = raw.get("date_format")
+    if fmt:
+        flags &= ~(DIGITAL_DATE_FORMAT_DAY_DD | DIGITAL_DATE_FORMAT_DAY_D | DIGITAL_DATE_FORMAT_WEEKDAY_MONTH_DAY)
+        if fmt == "day":
+            flags |= DIGITAL_DATE_FORMAT_DAY_DD
+        elif fmt == "day_unpadded":
+            flags |= DIGITAL_DATE_FORMAT_DAY_D
+        elif fmt == "weekday_month_day":
+            flags |= DIGITAL_DATE_FORMAT_WEEKDAY_MONTH_DAY
+    if raw.get("time_format") == "12h_ampm":
+        flags |= DIGITAL_TIME_FORMAT_12H
+    return flags & 0xFF
 
 
 def rgb565(r: int, g: int, b: int) -> int:
@@ -58,13 +109,24 @@ def dial_to_rgb565(img: Image.Image) -> bytes:
     return bytes(out)
 
 
-def sprite_to_rgb565a(img: Image.Image, name: str) -> tuple[int, int, int, int, bytes]:
+def sprite_to_rgb565a(
+    img: Image.Image,
+    name: str,
+    pivot_x: int | None = None,
+    pivot_y: int | None = None,
+    max_w: int = HAND_MAX_W,
+    max_h: int = HAND_MAX_H,
+) -> tuple[int, int, int, int, bytes]:
     img = img.convert("RGBA")
     w, h = img.size
-    if w > HAND_MAX_W or h > HAND_MAX_H:
-        raise ValueError(f"{name}: sprite {w}x{h} exceeds max {HAND_MAX_W}x{HAND_MAX_H}")
-    pivot_x = w // 2
-    pivot_y = h - 1
+    if w > max_w or h > max_h:
+        raise ValueError(f"{name}: sprite {w}x{h} exceeds max {max_w}x{max_h}")
+    if pivot_x is None:
+        pivot_x = w // 2
+    if pivot_y is None:
+        pivot_y = h - 1
+    pivot_x = max(0, min(w - 1, int(pivot_x)))
+    pivot_y = max(0, min(h - 1, int(pivot_y)))
     pixels = bytearray(w * h * 3)
     i = 0
     for y in range(h):
@@ -83,6 +145,56 @@ def pack_hand_chunk(w: int, h: int, px: int, py: int, pixels: bytes) -> bytes:
     return hdr + pixels
 
 
+def parse_rgb565(value: object) -> int:
+    if isinstance(value, int):
+        return value
+    return int(str(value), 0)
+
+
+def collect_digital_readout(behaviour: dict) -> tuple[bool, dict | None]:
+    raw = behaviour.get("digital_readout")
+    if not raw:
+        return False, None
+    cfg = dict(DEFAULT_DIGITAL_READOUT)
+    if isinstance(raw, dict):
+        for key in cfg:
+            if key not in raw:
+                continue
+            if "color" in key:
+                cfg[key] = parse_rgb565(raw[key])
+            else:
+                cfg[key] = int(raw[key])
+    elif raw is not True:
+        raise ValueError("behaviour.digital_readout must be true or an object with layout/colours")
+    if isinstance(raw, dict):
+        cfg["flags"] = digital_flags_from_json(raw)
+    return True, cfg
+
+
+def digital_meta_cpp(cfg: dict | None) -> str:
+    if not cfg:
+        return "{ 0, 0, 120, 120, 0, 0, 0, 0, 0, 0 }"
+    return (
+        f"{{ {cfg['time_x']}, {cfg['time_y']}, {cfg['date_x']}, {cfg['date_y']}, "
+        f"{cfg['time_color']}, {cfg['date_color']}, {cfg['bg_color']}, "
+        f"{cfg['time_text_size']}, {cfg['date_text_size']}, {cfg['flags']} }}"
+    )
+
+
+def hand_dial_pivot(hc: dict) -> tuple[int, int]:
+    anchor = hc.get("anchor")
+    if isinstance(anchor, dict) and "x" in anchor and "y" in anchor:
+        return int(anchor["x"]), int(anchor["y"])
+    return DIAL_PIVOT_USE_FACE, DIAL_PIVOT_USE_FACE
+
+
+def hand_sprite_pivot(hc: dict) -> tuple[int | None, int | None]:
+    hp = hc.get("hand_pivot")
+    if isinstance(hp, dict) and "x" in hp and "y" in hp:
+        return int(hp["x"]), int(hp["y"])
+    return None, None
+
+
 def collect_subdials(meta: dict, slug: str, behaviour: dict) -> list[dict]:
     if meta.get("subdials"):
         out: list[dict] = []
@@ -93,6 +205,7 @@ def collect_subdials(meta: dict, slug: str, behaviour: dict) -> list[dict]:
             if role not in SUBDIAL_ROLE:
                 raise ValueError(f"{slug}: unknown subdial role {role!r}")
             pos = sd.get("subdial", sd)
+            hp = sd.get("hand_pivot") or {}
             out.append(
                 {
                     "role": role,
@@ -101,6 +214,8 @@ def collect_subdials(meta: dict, slug: str, behaviour: dict) -> list[dict]:
                     "x": int(pos["x"]),
                     "y": int(pos["y"]),
                     "offset_deg": float(sd.get("offset_deg", 0)),
+                    "hand_pivot_x": int(hp["x"]) if "x" in hp else None,
+                    "hand_pivot_y": int(hp["y"]) if "y" in hp else None,
                 }
             )
         return out
@@ -144,41 +259,57 @@ def load_face(folder: Path) -> dict:
     for key in ("hour", "minute"):
         hc = hands_cfg[key]
         path = folder / hc["file"]
-        w, h, px, py, pix = sprite_to_rgb565a(Image.open(path), key)
+        spx, spy = hand_sprite_pivot(hc)
+        w, h, px, py, pix = sprite_to_rgb565a(Image.open(path), key, pivot_x=spx, pivot_y=spy)
         chunks.append(pack_hand_chunk(w, h, px, py, pix))
+        dpx, dpy = hand_dial_pivot(hc)
         hand_meta[key] = {
             "w": w,
             "h": h,
             "pivot_x": px,
             "pivot_y": py,
             "offset_deg": float(hc.get("offset_deg", 0)),
+            "dial_pivot_x": dpx,
+            "dial_pivot_y": dpy,
         }
 
     second_cfg = hands_cfg.get("second")
     if second_cfg and not second_cfg.get("optional", False):
         path = folder / second_cfg["file"]
         if path.exists():
-            w, h, px, py, pix = sprite_to_rgb565a(Image.open(path), "second")
+            spx, spy = hand_sprite_pivot(second_cfg)
+            w, h, px, py, pix = sprite_to_rgb565a(
+                Image.open(path), "second", pivot_x=spx, pivot_y=spy
+            )
             chunks.append(pack_hand_chunk(w, h, px, py, pix))
+            dpx, dpy = hand_dial_pivot(second_cfg)
             hand_meta["second"] = {
                 "w": w,
                 "h": h,
                 "pivot_x": px,
                 "pivot_y": py,
                 "offset_deg": float(second_cfg.get("offset_deg", 0)),
+                "dial_pivot_x": dpx,
+                "dial_pivot_y": dpy,
             }
             flags |= FLAG_HAS_SECOND
     elif second_cfg and second_cfg.get("optional", True):
         path = folder / second_cfg.get("file", "second.png")
         if path.exists():
-            w, h, px, py, pix = sprite_to_rgb565a(Image.open(path), "second")
+            spx, spy = hand_sprite_pivot(second_cfg)
+            w, h, px, py, pix = sprite_to_rgb565a(
+                Image.open(path), "second", pivot_x=spx, pivot_y=spy
+            )
             chunks.append(pack_hand_chunk(w, h, px, py, pix))
+            dpx, dpy = hand_dial_pivot(second_cfg)
             hand_meta["second"] = {
                 "w": w,
                 "h": h,
                 "pivot_x": px,
                 "pivot_y": py,
                 "offset_deg": float(second_cfg.get("offset_deg", 0)),
+                "dial_pivot_x": dpx,
+                "dial_pivot_y": dpy,
             }
             flags |= FLAG_HAS_SECOND
 
@@ -189,7 +320,14 @@ def load_face(folder: Path) -> dict:
         path = folder / sd["file"]
         if not path.is_file():
             raise ValueError(f"{slug}: missing subdial {path.name}")
-        w, h, px, py, pix = sprite_to_rgb565a(Image.open(path), sd["role"])
+        hp_x = sd.get("hand_pivot_x")
+        hp_y = sd.get("hand_pivot_y")
+        w, h, px, py, pix = sprite_to_rgb565a(
+            Image.open(path),
+            sd["role"],
+            pivot_x=hp_x,
+            pivot_y=hp_y,
+        )
         chunks.append(pack_hand_chunk(w, h, px, py, pix))
         subdial_packed.append(
             {
@@ -206,6 +344,10 @@ def load_face(folder: Path) -> dict:
     if subdial_packed:
         flags |= FLAG_HAS_CHRONO | FLAG_IS_CHRONOGRAPH
 
+    has_digital, digital_cfg = collect_digital_readout(behaviour)
+    if has_digital:
+        flags |= FLAG_HAS_DIGITAL
+
     hub_meta = None
     hub_cfg = meta.get("hub")
     if hub_cfg:
@@ -220,6 +362,34 @@ def load_face(folder: Path) -> dict:
             chunks.append(pack_hand_chunk(w, h, px, py, pix))
             hub_meta = {"w": w, "h": h, "pivot_x": px, "pivot_y": py}
             flags |= FLAG_HAS_HUB
+
+    weather_meta = None
+    weather_cfg = meta.get("weather_icon")
+    if weather_cfg:
+        wpath = folder / weather_cfg["file"]
+        if not wpath.is_file():
+            raise ValueError(f"{slug}: missing {weather_cfg['file']}")
+        wimg = Image.open(wpath).convert("RGBA")
+        target = int(weather_cfg.get("display_size", WEATHER_ICON_MAX))
+        if max(wimg.size) != target:
+            wimg = wimg.resize((target, target), Image.Resampling.LANCZOS)
+        w, h = wimg.size
+        if w > WEATHER_ICON_MAX or h > WEATHER_ICON_MAX:
+            raise ValueError(f"{slug}: weather icon sheet max {WEATHER_ICON_MAX}px after scale")
+        px, py = w // 2, h // 2
+        _, _, _, _, pix = sprite_to_rgb565a(
+            wimg, "weather", pivot_x=px, pivot_y=py, max_w=WEATHER_ICON_MAX, max_h=WEATHER_ICON_MAX
+        )
+        chunks.append(pack_hand_chunk(w, h, px, py, pix))
+        weather_meta = {
+            "x": int(weather_cfg["x"]),
+            "y": int(weather_cfg["y"]),
+            "grid_cols": int(weather_cfg.get("grid_cols", 3)),
+            "grid_rows": int(weather_cfg.get("grid_rows", 3)),
+            "w": w,
+            "h": h,
+        }
+        flags |= FLAG_HAS_WEATHER
 
     header = struct.pack(
         "<4sHHhh",
@@ -241,6 +411,8 @@ def load_face(folder: Path) -> dict:
         "hands": hand_meta,
         "hub": hub_meta,
         "subdials": subdial_packed,
+        "digital": digital_cfg,
+        "weather": weather_meta,
     }
 
 
@@ -254,9 +426,11 @@ def c_escape(data: bytes) -> str:
 
 
 def hand_meta_cpp(h: dict, kind: str) -> str:
+    dpx = h.get("dial_pivot_x", DIAL_PIVOT_USE_FACE)
+    dpy = h.get("dial_pivot_y", DIAL_PIVOT_USE_FACE)
     return (
         f"{{ {h['w']}, {h['h']}, {h['pivot_x']}, {h['pivot_y']}, "
-        f"{h['offset_deg']:.2f}f, WatchFaceHandKind::{kind} }}"
+        f"{h['offset_deg']:.2f}f, WatchFaceHandKind::{kind}, {dpx}, {dpy} }}"
     )
 
 
@@ -282,7 +456,10 @@ def emit_cpp(faces: list[dict]) -> None:
         if "second" in h:
             second = hand_meta_cpp(h["second"], "Second")
         else:
-            second = "{ 0, 0, 0, 0, 0.0f, WatchFaceHandKind::Second }"
+            second = (
+                f"{{ 0, 0, 0, 0, 0.0f, WatchFaceHandKind::Second, "
+                f"{DIAL_PIVOT_USE_FACE}, {DIAL_PIVOT_USE_FACE} }}"
+            )
         if hub:
             hub_cpp = f"{{ {hub['w']}, {hub['h']}, {hub['pivot_x']}, {hub['pivot_y']} }}"
         else:
@@ -301,11 +478,21 @@ def emit_cpp(faces: list[dict]) -> None:
                 )
             else:
                 sub_entries.append(
-                    "{ { 0, 0, 0, 0, 0.0f, WatchFaceHandKind::Chrono }, 0, 0, "
+                    f"{{ {{ 0, 0, 0, 0, 0.0f, WatchFaceHandKind::Chrono, "
+                    f"{DIAL_PIVOT_USE_FACE}, {DIAL_PIVOT_USE_FACE} }}, 0, 0, "
                     "SubdialRole::ChronoSecond }"
                 )
         sub_cpp = ", ".join(sub_entries)
 
+        digital_cpp = digital_meta_cpp(face.get("digital"))
+        weather = face.get("weather")
+        if weather:
+            weather_cpp = (
+                f"{{ {weather['x']}, {weather['y']}, {weather['grid_cols']}, "
+                f"{weather['grid_rows']}, {weather['w']}, {weather['h']} }}"
+            )
+        else:
+            weather_cpp = "{ 0, 0, 0, 0, 0, 0 }"
         manifest_entries.append(
             f'  {{ "{face["id"]}", "{face["name"]}", '
             f"watch_face_assets::kBlob_{sym}, watch_face_assets::kBlobSize_{sym}, "
@@ -316,7 +503,9 @@ def emit_cpp(faces: list[dict]) -> None:
             f"{second}, "
             f"{sub_count}, "
             f"{{ {sub_cpp} }}, "
-            f"{hub_cpp} }},"
+            f"{hub_cpp}, "
+            f"{digital_cpp}, "
+            f"{weather_cpp} }},"
         )
 
     assets_cpp.append("}  // namespace watch_face_assets")
@@ -338,6 +527,8 @@ enum class WatchFaceHandKind : uint8_t {{ Hour, Minute, Second, Chrono }};
 
 enum class SubdialRole : uint8_t {{ ChronoSecond = 0, ChronoMinute = 1, WallSecond = 2 }};
 
+static constexpr int16_t kDialPivotUseFace = {DIAL_PIVOT_USE_FACE};
+
 struct WatchFaceHandMeta {{
     uint16_t width;
     uint16_t height;
@@ -345,6 +536,9 @@ struct WatchFaceHandMeta {{
     int16_t pivot_y;
     float offset_deg;
     WatchFaceHandKind kind;
+    /** Screen pivot for rotation; kDialPivotUseFace = use face pivot from AssetFaceMeta. */
+    int16_t dial_pivot_x;
+    int16_t dial_pivot_y;
 }};
 
 struct WatchFaceHubMeta {{
@@ -363,6 +557,28 @@ struct SubdialMeta {{
 
 static constexpr uint8_t kMaxSubdials = 3;
 
+struct AssetDigitalReadoutMeta {{
+    int16_t time_x;
+    int16_t time_y;
+    int16_t date_x;
+    int16_t date_y;
+    uint16_t time_color;
+    uint16_t date_color;
+    uint16_t bg_color;
+    uint8_t time_text_size;
+    uint8_t date_text_size;
+    uint8_t flags;
+}};
+
+struct AssetWeatherIconMeta {{
+    int16_t x;
+    int16_t y;
+    uint8_t grid_cols;
+    uint8_t grid_rows;
+    uint16_t sheet_w;
+    uint16_t sheet_h;
+}};
+
 struct AssetFaceMeta {{
     const char* id;
     const char* name;
@@ -377,10 +593,14 @@ struct AssetFaceMeta {{
     uint8_t subdial_count;
     SubdialMeta subdials[kMaxSubdials];
     WatchFaceHubMeta hub;
+    AssetDigitalReadoutMeta digital;
+    AssetWeatherIconMeta weather;
     bool has_second() const {{ return (flags & 0x0001) != 0; }}
     bool has_hub() const {{ return (flags & 0x0002) != 0; }}
     bool has_subdials() const {{ return (flags & 0x0004) != 0; }}
     bool is_chronograph() const {{ return (flags & 0x0008) != 0; }}
+    bool has_digital_readout() const {{ return (flags & 0x0010) != 0; }}
+    bool has_weather_icon() const {{ return (flags & 0x0020) != 0; }}
 }};
 
 namespace watch_face_assets {{
@@ -414,68 +634,7 @@ inline const AssetFaceMeta* asset_face_meta(size_t index) {{
     print(f"watch_face_pack: {len(faces)} face(s), {total} bytes flash")
 
 
-def ensure_demo_assets() -> None:
-    demo = ASSETS_DIR / "demo"
-    demo.mkdir(parents=True, exist_ok=True)
-    manifest = demo / "face.json"
-    if not manifest.exists():
-        manifest.write_text(
-            json.dumps(
-                {
-                    "id": "demo",
-                    "name": "Demo Pack",
-                    "version": 1,
-                    "pivot": {"x": 120, "y": 120},
-                    "hands": {
-                        "hour": {"file": "hour.png", "length_px": 52, "offset_deg": 0},
-                        "minute": {"file": "minute.png", "length_px": 78, "offset_deg": 0},
-                        "second": {"file": "second.png", "length_px": 88, "offset_deg": 0, "optional": True},
-                    },
-                    "hub": {"file": "hub.png"},
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-
-    def save_hand(path: Path, w: int, h: int, color: tuple[int, int, int, int]) -> None:
-        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        cx = w // 2
-        for y in range(h):
-            for x in range(w):
-                if abs(x - cx) <= 2 and y < h - 4:
-                    img.putpixel((x, y), color)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        img.save(path)
-
-    dial_path = demo / "dial.png"
-    if not dial_path.exists():
-        dial = Image.new("RGB", (CANVAS, CANVAS), (20, 40, 80))
-        for y in range(CANVAS):
-            for x in range(CANVAS):
-                dx, dy = x - 120, y - 120
-                if dx * dx + dy * dy < 100 * 100:
-                    dial.putpixel((x, y), (30 + y // 8, 60, 120))
-        dial.save(dial_path)
-
-    if not (demo / "hour.png").exists():
-        save_hand(demo / "hour.png", 36, 60, (200, 200, 220, 255))
-    if not (demo / "minute.png").exists():
-        save_hand(demo / "minute.png", 24, 88, (255, 255, 255, 255))
-    if not (demo / "second.png").exists():
-        save_hand(demo / "second.png", 8, 96, (0, 255, 255, 255))
-    if not (demo / "hub.png").exists():
-        hub = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
-        for y in range(16):
-            for x in range(16):
-                if (x - 8) ** 2 + (y - 8) ** 2 <= 49:
-                    hub.putpixel((x, y), (180, 180, 200, 255))
-        hub.save(demo / "hub.png")
-
-
 def main() -> int:
-    ensure_demo_assets()
     if not ASSETS_DIR.is_dir():
         print("No clock assets/faces directory", file=sys.stderr)
         return 1

@@ -18,7 +18,7 @@ Hardware twin (proven pin map): [HomePuck](../HomePuck) — use its [docs/hardwa
 src/
 ├── main.cpp, LGFX_config.h
 ├── app/, display/, input/     Shell + shared UI ([ADR-01](adr/ADR-01-touch-navigation-and-app-shell.md))
-├── wifi/, time/               Shared services
+├── wifi/, time/, weather/     Shared services
 └── features/                  One folder per product feature ([features/README.md](src/features/README.md))
     ├── clock/                 code, include/, assets/, tools/, docs/, generated/
     ├── diary/

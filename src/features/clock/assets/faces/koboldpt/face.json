@@ -1,0 +1,84 @@
+{
+  "id": "koboldpt",
+  "name": "Kobold Phantom Tactical",
+  "version": 1,
+  "pivot": {
+    "x": 120,
+    "y": 120
+  },
+  "hands": {
+    "hour": {
+      "file": "hour.png",
+      "length_px": 59,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 10,
+        "y": 61
+      }
+    },
+    "minute": {
+      "file": "minute.png",
+      "length_px": 84,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 9,
+        "y": 86
+      }
+    },
+    "second": {
+      "file": "second.png",
+      "length_px": 85,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 6,
+        "y": 86
+      },
+      "optional": true
+    }
+  },
+  "behaviour": {
+    "show_second_hand": true,
+    "chronograph": true
+  },
+  "subdials": [
+    {
+      "role": "wall_second",
+      "file": "sub_wall_second.png",
+      "subdial": {
+        "x": 124,
+        "y": 116
+      },
+      "hand_pivot": {
+        "x": 6,
+        "y": 86
+      },
+      "offset_deg": 0
+    },
+    {
+      "role": "chrono_minute",
+      "file": "sub_chrono_minute.png",
+      "subdial": {
+        "x": 120,
+        "y": 71
+      },
+      "hand_pivot": {
+        "x": 6,
+        "y": 25
+      },
+      "offset_deg": 0
+    },
+    {
+      "role": "chrono_second",
+      "file": "sub_chrono_second.png",
+      "subdial": {
+        "x": 120,
+        "y": 168
+      },
+      "hand_pivot": {
+        "x": 6,
+        "y": 25
+      },
+      "offset_deg": 0
+    }
+  ]
+}

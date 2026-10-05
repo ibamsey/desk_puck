@@ -38,6 +38,14 @@
 /** Seconds added to compile-time boot clock (e.g. 3600 for UTC+1). */
 #define CLOCK_UTC_OFFSET_SEC 3600
 
+/** Default map position when NVS has no weather location (London). */
+#ifndef WEATHER_DEFAULT_LAT
+#define WEATHER_DEFAULT_LAT 51.5074f
+#endif
+#ifndef WEATHER_DEFAULT_LON
+#define WEATHER_DEFAULT_LON -0.1278f
+#endif
+
 #define CLOCK_TICK_INTERVAL_MS 200
 
 /** Asset/procedural second-hand redraw cadence while the clock face is active. */

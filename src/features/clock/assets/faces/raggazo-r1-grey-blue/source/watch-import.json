@@ -1,0 +1,19 @@
+{
+  "source_watch": "raggazo-r1-grey-blue.watch",
+  "watchmaker_name": "Raggazo R1 Grey Blue",
+  "author": "Criss Viking",
+  "features": "12h Time,Analog,Battery Level,Date,Digital,Smooth Seconds",
+  "wm_canvas": 512,
+  "hand_assets": {
+    "hour": ".img2326.png",
+    "minute": ".img2328.png",
+    "second": ".img2330.png"
+  },
+  "subdial_assets": {},
+  "notes": [
+    "hour dial pivot (122, 122) \u2014 expected main face centre",
+    "minute dial pivot (122, 122) \u2014 expected main face centre",
+    "second dial pivot (123, 123) \u2014 expected main face centre",
+    "date window: live day (day) at desk y=189"
+  ]
+}

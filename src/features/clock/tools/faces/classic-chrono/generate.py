@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Classic chronograph: 9h running seconds, 12h chrono minutes, 6h chrono seconds."""
+"""Classic chronograph: 6h running seconds, 9h chrono minutes, 3h chrono seconds."""
 
 from __future__ import annotations
 
@@ -18,9 +18,9 @@ from _paths import face_dir  # noqa: E402
 OUT = face_dir("classic-chrono")
 CANVAS = 240
 CX, CY = 120, 120
-SUB_WALL = (52, 120)
-SUB_MIN = (120, 52)
-SUB_CHRONO_SEC = (120, 168)
+SUB_WALL = (120, 168)
+SUB_MIN = (52, 120)
+SUB_CHRONO_SEC = (168, 120)
 
 WHITE = (245, 245, 240)
 BLACK = (18, 18, 20)

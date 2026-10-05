@@ -1,5 +1,6 @@
 #include "clock/clock_feature.h"
 
+#include "clock/clock_draw.h"
 #include "clock/clock_faces.h"
 #include "clock/generated/watch_face_manifest.h"
 #include "clock/wall_time.h"
@@ -41,7 +42,9 @@ AnalogClockState ClockFeature::build_clock_state(int hour, int minute, int secon
             frac = 1.0f;
         }
     }
-    return angles_from_hms(hour, minute, second, frac);
+    AnalogClockState s = angles_from_hms(hour, minute, second, frac);
+    wall_time_now(s.wall);
+    return s;
 }
 
 ClockHandMask ClockFeature::procedural_mask(int hour, int minute, int second, bool need_full) const {
@@ -92,6 +95,8 @@ void ClockFeature::request_full() {
     _face_composed = false;
     _static_drawn = false;
     _last_hour = _last_minute = _last_second = -1;
+    _last_static_minute = _last_static_day = _last_static_second = -1;
+    _procedural.reset();
     setDirty();
 }
 
@@ -117,6 +122,8 @@ void ClockFeature::sync_asset_for_face(int face_index) {
         return;
     }
 
+    _procedural.reset();
+
     if (_loaded_face_index == face_index && _asset.is_loaded()) {
         return;
     }
@@ -141,13 +148,14 @@ void ClockFeature::onEnter() {
     _second_smooth_last_draw_ms = 0;
     _face_gesture_cooldown_until_ms = millis() + GESTURE_ECHO_COOLDOWN_MS;
     reset_chronograph();
-    sync_asset_for_face(_face_index);
     request_full();
+    sync_asset_for_face(_face_index);
 }
 
 void ClockFeature::onExit() {
     reset_chronograph();
     _asset.unload();
+    _procedural.reset();
     _loaded_face_index = -1;
     _face_composed = false;
 }
@@ -163,8 +171,8 @@ void ClockFeature::advance_face(int delta) {
     _second_smooth_last_draw_ms = 0;
     reset_chronograph();
     _face_gesture_cooldown_until_ms = millis() + GESTURE_ECHO_COOLDOWN_MS;
-    sync_asset_for_face(_face_index);
     request_full();
+    sync_asset_for_face(_face_index);
 
 #if DEBUG_DISPLAY
     const ClockFaceEntry* entry = clock_face_entry_at(_face_index);
@@ -296,6 +304,7 @@ void ClockFeature::onDraw(lgfx::LGFX_Device& gfx) {
     const bool need_full = _force_full || !_face_composed;
 
     if (entry->kind == ClockFaceKind::Asset) {
+        _procedural.reset();
         if (!_asset.is_loaded()) {
             sync_asset_for_face(_face_index);
         }
@@ -305,11 +314,37 @@ void ClockFeature::onDraw(lgfx::LGFX_Device& gfx) {
         if (!face) {
             return;
         }
+        if (face->use_static_compositor) {
+            _procedural.present(gfx, face, angles, need_full);
+            _last_drawn = angles;
+            _face_composed = true;
+            _force_full = false;
+            _last_hour = h;
+            _last_minute = m;
+            _last_second = s;
+            return;
+        }
+        const bool static_stale =
+            !_static_drawn || m != _last_static_minute || angles.wall.day != _last_static_day ||
+            (face->refresh_static_every_second && s != _last_static_second);
+
         if (need_full || !_static_drawn) {
             face->draw_background(gfx);
-            face->draw_static(gfx);
             _static_drawn = true;
-            face->draw_hands(gfx, angles, false, ClockHandMask::WallHands);
+        }
+        const int cx = clock_draw::kCenterX;
+        const int cy = clock_draw::kCenterY;
+        if (need_full || static_stale) {
+            if (_face_composed && !need_full) {
+                face->draw_hands(gfx, _last_drawn, true, ClockHandMask::WallHands, cx, cy);
+            }
+            face->draw_static(gfx, angles.wall);
+            _last_static_minute = m;
+            _last_static_day = angles.wall.day;
+            _last_static_second = s;
+        }
+        if (need_full || static_stale) {
+            face->draw_hands(gfx, angles, false, ClockHandMask::WallHands, cx, cy);
         } else {
             const ClockHandMask mask = procedural_mask(h, m, s, false);
             const bool second_only =
@@ -317,16 +352,16 @@ void ClockFeature::onDraw(lgfx::LGFX_Device& gfx) {
                 !mask_has(mask, ClockHandMask::Minute);
 
             if (second_only) {
-                face->draw_hands(gfx, _last_drawn, true, ClockHandMask::Second);
-                face->draw_hands(gfx, angles, false, ClockHandMask::Second);
+                face->draw_hands(gfx, _last_drawn, true, ClockHandMask::Second, cx, cy);
+                face->draw_hands(gfx, angles, false, ClockHandMask::Second, cx, cy);
                 if (mask_has(mask, ClockHandMask::Hub)) {
-                    face->draw_hands(gfx, angles, false, ClockHandMask::Hub);
+                    face->draw_hands(gfx, angles, false, ClockHandMask::Hub, cx, cy);
                 }
             } else {
-                face->draw_hands(gfx, _last_drawn, true, mask);
-                face->draw_hands(gfx, angles, false, mask);
+                face->draw_hands(gfx, _last_drawn, true, mask, cx, cy);
+                face->draw_hands(gfx, angles, false, mask, cx, cy);
                 if (mask_has(mask, ClockHandMask::Minute) && !mask_has(mask, ClockHandMask::Hour)) {
-                    face->draw_hands(gfx, angles, false, ClockHandMask::Hour);
+                    face->draw_hands(gfx, angles, false, ClockHandMask::Hour, cx, cy);
                 }
             }
         }

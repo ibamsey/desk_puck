@@ -34,20 +34,24 @@ Coordinates: **x** right, **y** down, origin top-left.
 
 ## 3. Layer model (required)
 
-Draw order bottom → top:
+Draw order bottom → top (runtime compositor):
 
 ```
 ┌─────────────────────────────────────┐
-│  L0  dial.png      Static background│  ← AI art; NO hands, NO moving parts
-│  L1  (optional)    complications    │  ← static date window art, logos
-│  L2  hour.png      Rotated each tick│  ← alpha sprite, pivot at hub
-│  L3  minute.png    Rotated each tick│
-│  L4  second.png    Rotated each tick│  ← optional; omit for minute-only mode
+│  L0  dial.png      Static background│  ← AI art; NO hands, NO live digits
+│  L1  (optional)    static art only  │  ← logos, fixed date *windows* (not live text)
+│  L2  digital       Live HH:MM:SS    │  ← firmware only; see digital-readout-compositing.md
+│  L3  hour.png      Rotated each tick│  ← alpha sprite, pivot at hub
+│  L4  minute.png    Rotated each tick│
 │  L5  hub.png       Static cap       │  ← centre jewel / pin (covers pivots)
+│  L6  second.png    Rotated each tick│  ← optional; drawn last (on top)
 └─────────────────────────────────────┘
 ```
 
-**Rule:** Anything that moves with time **must not** appear in `dial.png`.
+**Rules:**
+
+- Anything that **moves with time** (hands, ticking seconds) **must not** appear in `dial.png`.
+- **Live** time/date strings use `behaviour.digital_readout` in `face.json` — never burned into `dial.png`.
 
 ---
 
@@ -133,6 +137,7 @@ Example:
   "hub": { "file": "hub.png", "z": 30 },
   "behaviour": {
     "show_second_hand": true,
+    "digital_readout": false,
     "tick_hz": 1
   },
   "erase": {
@@ -148,8 +153,17 @@ Example:
 | `length_px` | Sanity check vs sprite; used by validator |
 | `z` | Draw order among hands |
 | `erase.mode` | `full_redraw` = blit cached dial before hands each tick (required for raster dials) |
+| `digital_readout` | `false`, `true` (default layout/colours), or object — see [digital-readout-compositing.md](digital-readout-compositing.md) |
 
 Future: `complications[]` for static overlays with `{ "file", "x", "y" }`.
+
+### 5.1 Live digital readout (asset faces)
+
+Enable in `behaviour.digital_readout`. Packer sets `FLAG_HAS_DIGITAL` and emits `AssetDigitalReadoutMeta` (positions, RGB565 colours, text sizes). Copy [wayfinder/face.json](../assets/faces/wayfinder/face.json) as a reference.
+
+**Authoring:** Leave the chosen `time_y` / `date_y` band clear on `dial.png` (Wayfinder uses centre stack ~108 / 132). Match colours to the dial; firmware uses `clear_background = false` so gradients show through.
+
+**Procedural faces** use `draw_digital_overlay` + `use_static_compositor` instead — same z-order contract in [digital-readout-compositing.md](digital-readout-compositing.md).
 
 ---
 
@@ -209,15 +223,15 @@ src/features/clock/assets/faces/<slug>/*.png + face.json
 
 ## 8. Runtime strategy (firmware)
 
-Aligns with current `ClockFeature` lifecycle:
+Aligns with `ClockFeature` + `AssetFaceRuntime` / `ProceduralCompositor`:
 
-1. **onEnter (face):** Decode `dial` once into a **RAM cache** (115 KB) or LovyanGFX sprite.
-2. **Each second:** Blit cache → draw rotated hand sprites → blit hub.
-3. **onExit:** Release cache.
+1. **Static RAM layer (~115 KB):** dial (+ live digital text when enabled) + hour + minute + hub. Rebuilt each frame when digital readout is on (so seconds tick); otherwise hour/minute rebuild on wall minute change.
+2. **Smooth second:** Copy static into a patch for the second-hand dirty rect, composite rotated `second.png`, push once. Readout **bands** blit from static in pieces that **exclude** that rect so digits stay under hour/minute and the second stays on top.
+3. **onExit:** Release static buffer and hand patch.
 
-**Do not** use single-colour hand erase on photographic dials (current procedural `erase_color` trick).
+**Do not** draw live digits on the panel after hands. **Do not** use single-colour hand erase on photographic dials.
 
-**Image-based hands:** **Yes, recommended** — separate alpha PNGs rotated with LovyanGFX `pushImageRotateZoom` (or equivalent). Avoid baking hands into the dial.
+Details: [digital-readout-compositing.md](digital-readout-compositing.md).
 
 ---
 
@@ -229,6 +243,7 @@ Aligns with current `ClockFeature` lifecycle:
 - [ ] Legible at arm’s length on real hardware (upload once, review).
 - [ ] `face.json` `id` matches folder slug.
 - [ ] Validator script passes (when implemented).
+- [ ] If using live digital: `digital_readout` in `face.json`, calm dial centre, no digits in `dial.png` ([§5.1](authoring-spec.md#51-live-digital-readout-asset-faces)).
 
 ---
 
@@ -259,7 +274,7 @@ Both can coexist in one registry with a `type: "procedural" | "asset"` field in 
 
 ## 12. Next implementation steps (firmware)
 
-1. Copy `assets/faces/_template/` to a new slug with placeholder manifest.
+1. Copy `assets/faces/_template/` to a new slug (`face.json` + README there).
 2. Implement `AssetClockFace` loader + RAM dial cache.
 3. Add `tools/watch_face_pack.py` validator + code generation.
 4. Optional: migrate **Midnight** to an asset pack when a dial is ready.

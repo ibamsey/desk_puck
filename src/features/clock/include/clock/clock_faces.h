@@ -3,7 +3,10 @@
 
 #include "LGFX_config.h"
 
+#include "clock/wall_time.h"
+
 struct AnalogClockState {
+    ClockWallTime wall;
     int hour = 0;
     int minute = 0;
     float hour_angle;
@@ -39,10 +42,25 @@ inline bool any_hand(ClockHandMask m) {
 struct ClockFace {
     const char* id;
     const char* name;
-    void (*draw_background)(LGFX_Device& lcd);
-    void (*draw_static)(LGFX_Device& lcd);
-    void (*draw_hands)(LGFX_Device& lcd, const AnalogClockState& state, bool erase, ClockHandMask mask);
+    void (*draw_background)(lgfx::LovyanGFX& lcd);
+    /** Tick marks and labels baked into the static layer (no moving hands). */
+    void (*draw_static)(lgfx::LovyanGFX& lcd, const ClockWallTime& wall);
+    /** Optional digital readout baked into the static layer (behind hands); compositor draws second last. */
+    void (*draw_digital_overlay)(lgfx::LovyanGFX& lcd, const ClockWallTime& wall);
+    /**
+     * Draw hands with the dial centre at (cx, cy). The compositor passes an offset centre so
+     * hands can be rendered into a small off-screen patch; faces must not hard-code the centre.
+     */
+    void (*draw_hands)(lgfx::LovyanGFX& lcd, const AnalogClockState& state, bool erase, ClockHandMask mask,
+                       int cx, int cy);
+    /** Second hand reach from the centre (tail, tip), used to size the compositor dirty rect. */
+    float second_tail_len;
+    float second_tip_len;
     uint16_t erase_color;
+    /** Redraw draw_static when the second changes (live digital seconds). */
+    bool refresh_static_every_second;
+    /** Bake dial + hour/minute into a RAM static layer; smooth second via dirty-rect restore. */
+    bool use_static_compositor;
 };
 
 enum class ClockFaceKind : uint8_t { Procedural, Asset };

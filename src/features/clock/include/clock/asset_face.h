@@ -1,6 +1,7 @@
 #ifndef CLOCK_ASSET_FACE_H
 #define CLOCK_ASSET_FACE_H
 
+#include "clock/clock_digital.h"
 #include "clock/clock_faces.h"
 #include "clock/generated/watch_face_manifest.h"
 #include "LGFX_config.h"
@@ -57,6 +58,15 @@ private:
     void clip_rect(int& x, int& y, int& w, int& h) const;
     void rect_union(int& ux, int& uy, int& uw, int& uh, int x, int y, int w, int h) const;
     void remember_shown(const AnalogClockState& state);
+    void present_digital_compositor(lgfx::LGFX_Device& gfx, const AnalogClockState& state, bool force_full);
+    clock_digital::DigitalReadoutStyle digital_readout_style() const;
+    void draw_digital_on_layer(lgfx::LovyanGFX& layer, const ClockWallTime& wall) const;
+    void second_hand_dirty_union(const AnalogClockState& state, bool merge_prev, int& ux, int& uy, int& uw,
+                                 int& uh) const;
+    void second_rotation_pivot(int& x, int& y) const;
+    bool push_band_patch(lgfx::LGFX_Device& gfx, int x, int y, int w, int h) const;
+    void push_readout_bands_excluding(lgfx::LGFX_Device& gfx, int ex, int ey, int ew, int eh) const;
+    void draw_weather_icon(lgfx::LovyanGFX& gfx) const;
 
     const uint8_t* _blob = nullptr;
     uint16_t* _static = nullptr;
@@ -67,13 +77,20 @@ private:
     HandBuffer _minute;
     HandBuffer _second;
     HandBuffer _hub;
+    HandBuffer _weather;
     LoadedSubdial _subdials[kMaxSubdials];
     uint8_t _subdial_count = 0;
     int16_t _pivot_x = 120;
     int16_t _pivot_y = 120;
+    int16_t _second_dial_pivot_x = kDialPivotUseFace;
+    int16_t _second_dial_pivot_y = kDialPivotUseFace;
     int _asset_index = -1;
     bool _has_second = false;
     bool _has_hub = false;
+    bool _has_digital = false;
+    bool _has_weather = false;
+    AssetDigitalReadoutMeta _digital_meta{};
+    AssetWeatherIconMeta _weather_meta{};
     bool _has_shown_second = false;
     float _shown_second_angle = 0.0f;
     bool _has_shown_chrono = false;

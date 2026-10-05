@@ -27,7 +27,7 @@ static uint16_t lerp_rgb565(uint16_t a, uint16_t b, float t) {
     return (uint16_t)((rr << 11) | (rg << 5) | rb);
 }
 
-void fill_radial_disc(LGFX_Device& lcd, int cx, int cy, int radius,
+void fill_radial_disc(lgfx::LovyanGFX& lcd, int cx, int cy, int radius,
                       uint16_t inner_rgb, uint16_t outer_rgb) {
     for (int r = radius; r >= 0; r -= 2) {
         const float t = (float)r / (float)radius;
@@ -35,7 +35,7 @@ void fill_radial_disc(LGFX_Device& lcd, int cx, int cy, int radius,
     }
 }
 
-void draw_tick_ring(LGFX_Device& lcd, int cx, int cy, int radius,
+void draw_tick_ring(lgfx::LovyanGFX& lcd, int cx, int cy, int radius,
                     uint16_t major_color, uint16_t minor_color,
                     int major_len, int minor_len, int major_w, int minor_w) {
     for (int i = 0; i < 60; ++i) {
@@ -51,7 +51,7 @@ void draw_tick_ring(LGFX_Device& lcd, int cx, int cy, int radius,
     }
 }
 
-void draw_hand_line(LGFX_Device& lcd, int cx, int cy, float angle_deg, float length,
+void draw_hand_line(lgfx::LovyanGFX& lcd, int cx, int cy, float angle_deg, float length,
                     int width, uint16_t color, bool rounded_cap) {
     int x2, y2;
     polar_to_xy(cx, cy, angle_deg, length, x2, y2);
@@ -65,7 +65,7 @@ void draw_hand_line(LGFX_Device& lcd, int cx, int cy, float angle_deg, float len
     }
 }
 
-void draw_hand_triangle(LGFX_Device& lcd, int cx, int cy, float angle_deg, float length,
+void draw_hand_triangle(lgfx::LovyanGFX& lcd, int cx, int cy, float angle_deg, float length,
                         float width_at_base, uint16_t color) {
     int tip_x, tip_y;
     polar_to_xy(cx, cy, angle_deg, length, tip_x, tip_y);
@@ -78,7 +78,7 @@ void draw_hand_triangle(LGFX_Device& lcd, int cx, int cy, float angle_deg, float
     lcd.fillTriangle(cx, cy, cx2, cy2, tip_x, tip_y, color);
 }
 
-void draw_second_hand(LGFX_Device& lcd, int cx, int cy, float angle_deg, float tail_len,
+void draw_second_hand(lgfx::LovyanGFX& lcd, int cx, int cy, float angle_deg, float tail_len,
                       float tip_len, uint16_t color) {
     int tail_x, tail_y, tip_x, tip_y;
     polar_to_xy(cx, cy, angle_deg + 180.0f, tail_len, tail_x, tail_y);

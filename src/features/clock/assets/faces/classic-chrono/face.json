@@ -26,24 +26,24 @@
       "role": "wall_second",
       "file": "sub_wall_sec.png",
       "subdial": {
-        "x": 52,
-        "y": 120
+        "x": 120,
+        "y": 168
       }
     },
     {
       "role": "chrono_minute",
       "file": "sub_chrono_min.png",
       "subdial": {
-        "x": 120,
-        "y": 52
+        "x": 52,
+        "y": 120
       }
     },
     {
       "role": "chrono_second",
       "file": "sub_chrono_sec.png",
       "subdial": {
-        "x": 120,
-        "y": 168
+        "x": 168,
+        "y": 120
       }
     }
   ],

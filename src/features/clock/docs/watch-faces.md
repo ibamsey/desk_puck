@@ -14,7 +14,7 @@ Procedural drawing (`faces/*.cpp` in this feature) is fine for bring-up but caps
 | **Hands** | Hour, minute, second | Separate **alpha PNG sprites**, rotated each second in code |
 | **Hub** | Centre pin / jewel | Optional small `hub.png` on top |
 
-**Do not** bake moving hands into the dial image. **Do not** rely on single-colour “erase” over photographic dials (current procedural trick). Asset faces keep one **static layer** in RAM (dial + hour + minute + hub, rebuilt from flash on the hour/minute change). The second hand and chrono subdials are restored by blitting only their rotated dirty rects from that frozen layer, then redrawn.
+**Do not** bake moving hands or **live** digital time into the dial image. Asset faces use a **static compositor** in RAM: dial + optional **live digital** (from `face.json`) + hour + minute + hub; the second hand (and chrono subdials) composite on top via dirty-rect patches. See [digital-readout-compositing.md](digital-readout-compositing.md).
 
 **Image-based hands:** Yes—separate PNGs with transparency and a fixed pivot at the dial centre. LovyanGFX can rotate sprites; hands stay sharp and match the dial style when generated with the dial as reference.
 
@@ -48,7 +48,7 @@ assets/faces/<slug>/  →  tools/watch_face_pack.py  →  generated/ registry + 
 ```
 
 - **Build:** Validate PNGs, convert dial to flash-friendly RGB565 / QOI / RLE, auto-generate face registry (no hand-editing `clock_faces.cpp`).
-- **Runtime:** On face enter, compose a **~115 KB static layer** (dial from flash + hour + minute + hub). Smooth second ticks restore only the hand’s dirty rect from that layer, then rotate the second (and chrono) sprites. Hour/minute are not redrawn between wall minutes.
+- **Runtime:** **~115 KB static layer** (dial + digital when enabled + hour + minute + hub). Second hand: patch from static + rotated sprite; readout bands refresh from static outside the second’s dirty rect. Faces with `digital_readout` rebuild static each frame so seconds tick.
 - **Flash:** Roughly **5–15** rich embedded faces in 4 MB, or more via LittleFS if needed.
 
 ## AI workflow (short)
@@ -73,7 +73,6 @@ Both can share one registry with `type: procedural | asset` in manifest.
 | Step | Status |
 |------|--------|
 | Procedural Midnight | Shipped (boot default) |
-| `assets/faces/demo/` example pack | Shipped |
 | `tools/watch_face_pack.py` + PlatformIO pre-build | Shipped |
 | `AssetFaceRuntime` static layer + dirty-rect restore | Shipped |
 | Unified registry (procedural + asset) | Shipped |

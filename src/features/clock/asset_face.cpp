@@ -1,7 +1,9 @@
 #include "clock/asset_face.h"
 
 #include "clock/chronograph.h"
+#include "clock/clock_digital.h"
 #include "config.h"
+#include "weather/local_weather.h"
 
 #include <LovyanGFX.hpp>
 
@@ -59,6 +61,121 @@ float bake_minute_angle(int minute) {
     return (float)minute * 6.0f;
 }
 
+int weather_cell_from_wmo(int code) {
+    switch (code) {
+    case 0:
+        return 0;
+    case 1:
+        return 1;
+    case 2:
+        return 2;
+    case 3:
+        return 3;
+    case 45:
+    case 48:
+        return 8;
+    case 51:
+    case 53:
+    case 55:
+    case 56:
+    case 57:
+    case 61:
+    case 63:
+    case 65:
+    case 66:
+    case 67:
+    case 80:
+    case 81:
+    case 82:
+        return 5;
+    case 71:
+    case 73:
+    case 75:
+    case 77:
+    case 85:
+    case 86:
+        return 7;
+    case 95:
+    case 96:
+    case 99:
+        return 6;
+    default:
+        return 0;
+    }
+}
+
+constexpr int kMaxBandPieces = 8;
+
+struct BandRect {
+    int x;
+    int y;
+    int w;
+    int h;
+    bool empty() const { return w <= 0 || h <= 0; }
+};
+
+void split_rect_exclude(BandRect r, BandRect cut, BandRect* out, int& out_count, int out_max) {
+    out_count = 0;
+    if (r.empty()) {
+        return;
+    }
+    if (r.x >= cut.x + cut.w || cut.x >= r.x + r.w || r.y >= cut.y + cut.h || cut.y >= r.y + r.h) {
+        if (out_max > 0) {
+            out[0] = r;
+            out_count = 1;
+        }
+        return;
+    }
+
+    const int ex0 = (cut.x > r.x) ? cut.x : r.x;
+    const int ey0 = (cut.y > r.y) ? cut.y : r.y;
+    const int ex1 = (cut.x + cut.w < r.x + r.w) ? cut.x + cut.w : r.x + r.w;
+    const int ey1 = (cut.y + cut.h < r.y + r.h) ? cut.y + cut.h : r.y + r.h;
+
+    auto push = [&](int x, int y, int w, int h) {
+        if (out_count >= out_max || w <= 0 || h <= 0) {
+            return;
+        }
+        out[out_count++] = BandRect{x, y, w, h};
+    };
+
+    if (ey0 > r.y) {
+        push(r.x, r.y, r.w, ey0 - r.y);
+    }
+    if (ey1 < r.y + r.h) {
+        push(r.x, ey1, r.w, r.y + r.h - ey1);
+    }
+    const int mid_h = ey1 - ey0;
+    if (mid_h > 0) {
+        if (ex0 > r.x) {
+            push(r.x, ey0, ex0 - r.x, mid_h);
+        }
+        if (ex1 < r.x + r.w) {
+            push(ex1, ey0, r.x + r.w - ex1, mid_h);
+        }
+    }
+}
+
+int band_pieces_excluding(BandRect band, BandRect exclude, BandRect* out, int out_max) {
+    if (band.empty()) {
+        return 0;
+    }
+    if (exclude.empty()) {
+        if (out_max > 0) {
+            out[0] = band;
+        }
+        return 1;
+    }
+    BandRect pieces[kMaxBandPieces];
+    int piece_n = 0;
+    split_rect_exclude(band, exclude, pieces, piece_n, kMaxBandPieces);
+    const int n = (piece_n < out_max) ? piece_n : out_max;
+    for (int i = 0; i < n; ++i) {
+        out[i] = pieces[i];
+    }
+    return n;
+}
+
 } // namespace
 
 void AssetFaceRuntime::draw_hand(lgfx::LovyanGFX& gfx, const HandBuffer& hand, float angle_deg) const {
@@ -68,6 +185,12 @@ void AssetFaceRuntime::draw_hand(lgfx::LovyanGFX& gfx, const HandBuffer& hand, f
 void AssetFaceRuntime::draw_hand_at(lgfx::LovyanGFX& gfx, const HandBuffer& hand, int pivot_x, int pivot_y,
                                     float angle_deg) const {
     if (!hand.active || !hand.pixels) {
+        return;
+    }
+    if (!_static_valid || !_static) {
+        const float angle = angle_deg + hand.offset_deg;
+        gfx.pushImageRotateZoomWithAA(pivot_x, pivot_y, hand.pivot_x, hand.pivot_y, angle, 1.0f, 1.0f,
+                                      hand.width, hand.height, hand.pixels, 0u);
         return;
     }
     composite_hand_on_panel(static_cast<lgfx::LGFX_Device&>(gfx), hand, pivot_x, pivot_y, angle_deg, false,
@@ -152,6 +275,135 @@ void AssetFaceRuntime::composite_hand_on_panel(lgfx::LGFX_Device& gfx, const Han
     gfx.pushImage(ux, uy, uw, uh, _hand_patch);
 }
 
+clock_digital::DigitalReadoutStyle AssetFaceRuntime::digital_readout_style() const {
+    clock_digital::DigitalReadoutStyle style;
+    style.time_color = _digital_meta.time_color;
+    style.date_color = _digital_meta.date_color;
+    style.bg_color = _digital_meta.bg_color;
+    style.time_text_size = _digital_meta.time_text_size;
+    style.date_text_size = _digital_meta.date_text_size;
+    style.time_x = _digital_meta.time_x;
+    style.time_y = _digital_meta.time_y;
+    style.date_x = _digital_meta.date_x;
+    style.date_y = _digital_meta.date_y;
+    style.flags = _digital_meta.flags;
+    style.clear_background = false;
+    return style;
+}
+
+void AssetFaceRuntime::draw_digital_on_layer(lgfx::LovyanGFX& layer, const ClockWallTime& wall) const {
+    if (!_has_digital) {
+        return;
+    }
+    clock_digital::draw_time_date_readout(layer, wall, digital_readout_style());
+}
+
+bool AssetFaceRuntime::push_band_patch(lgfx::LGFX_Device& gfx, int x, int y, int w, int h) const {
+    clip_rect(x, y, w, h);
+    if (w <= 0 || h <= 0 || !_static || !_static_valid) {
+        return false;
+    }
+    const size_t patch_pixels = (size_t)w * (size_t)h;
+    if (!ensure_hand_patch(patch_pixels)) {
+        return false;
+    }
+    for (int row = 0; row < h; ++row) {
+        memcpy(&_hand_patch[(size_t)row * (size_t)w], &_static[(y + row) * 240 + x], (size_t)w * 2);
+    }
+    gfx.pushImage(x, y, w, h, _hand_patch);
+    return true;
+}
+
+void AssetFaceRuntime::push_readout_bands_excluding(lgfx::LGFX_Device& gfx, int ex, int ey, int ew,
+                                                    int eh) const {
+    const auto style = digital_readout_style();
+    BandRect time_band{};
+    BandRect date_band{};
+    const BandRect exclude{ex, ey, ew, eh};
+
+    BandRect pieces[kMaxBandPieces];
+    int n = 0;
+    if (style.flags & clock_digital::kDigitalShowTime) {
+        clock_digital::time_readout_rect(style, time_band.x, time_band.y, time_band.w, time_band.h);
+        n = band_pieces_excluding(time_band, exclude, pieces, kMaxBandPieces);
+        for (int i = 0; i < n; ++i) {
+            push_band_patch(gfx, pieces[i].x, pieces[i].y, pieces[i].w, pieces[i].h);
+        }
+    }
+    if (style.flags & clock_digital::kDigitalShowDate) {
+        clock_digital::date_readout_rect(style, date_band.x, date_band.y, date_band.w, date_band.h);
+        n = band_pieces_excluding(date_band, exclude, pieces, kMaxBandPieces);
+        for (int i = 0; i < n; ++i) {
+            push_band_patch(gfx, pieces[i].x, pieces[i].y, pieces[i].w, pieces[i].h);
+        }
+    }
+}
+
+void AssetFaceRuntime::second_rotation_pivot(int& x, int& y) const {
+    if (_second_dial_pivot_x != kDialPivotUseFace) {
+        x = _second_dial_pivot_x;
+        y = _second_dial_pivot_y;
+    } else {
+        x = _pivot_x;
+        y = _pivot_y;
+    }
+}
+
+void AssetFaceRuntime::second_hand_dirty_union(const AnalogClockState& state, bool merge_prev, int& ux,
+                                               int& uy, int& uw, int& uh) const {
+    ux = uy = uw = uh = 0;
+    if (!_has_second || !_second.active) {
+        return;
+    }
+    int pivot_x = 0;
+    int pivot_y = 0;
+    second_rotation_pivot(pivot_x, pivot_y);
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    if (merge_prev && _has_shown_second) {
+        hand_dirty_rect(pivot_x, pivot_y, _second, _shown_second_angle, x, y, w, h);
+        rect_union(ux, uy, uw, uh, x, y, w, h);
+    }
+    hand_dirty_rect(pivot_x, pivot_y, _second, state.second_angle, x, y, w, h);
+    rect_union(ux, uy, uw, uh, x, y, w, h);
+    clip_rect(ux, uy, uw, uh);
+}
+
+void AssetFaceRuntime::draw_weather_icon(lgfx::LovyanGFX& gfx) const {
+    if (!_has_weather || !_weather.active || !_weather.pixels || _weather_meta.grid_cols == 0 ||
+        _weather_meta.grid_rows == 0) {
+        return;
+    }
+    LocalWeatherNow wx{};
+    local_weather_now(wx);
+    const int cell = weather_cell_from_wmo(wx.valid ? (int)wx.weather_code : 0);
+    const int cols = _weather_meta.grid_cols;
+    const int rows = _weather_meta.grid_rows;
+    const int idx = cell % (cols * rows);
+    const int col = idx % cols;
+    const int row = idx / cols;
+    const int sheet_w = _weather.width;
+    const int sheet_h = _weather.height;
+    const int cell_w = sheet_w / cols;
+    const int cell_h = sheet_h / rows;
+    if (cell_w <= 0 || cell_h <= 0) {
+        return;
+    }
+    const int sx = col * cell_w;
+    const int sy = row * cell_h;
+    const int dst_x = _weather_meta.x - cell_w / 2;
+    const int dst_y = _weather_meta.y - cell_h / 2;
+    lgfx::argb8888_t row_buf[32];
+    const int copy_w = (cell_w > 32) ? 32 : cell_w;
+    for (int row = 0; row < cell_h; ++row) {
+        memcpy(row_buf, _weather.pixels + (size_t)(sy + row) * (size_t)sheet_w + (size_t)sx,
+               (size_t)copy_w * sizeof(lgfx::argb8888_t));
+        gfx.pushImage(dst_x, dst_y + row, copy_w, 1, row_buf, 0u);
+    }
+}
+
 void AssetFaceRuntime::draw_hub(lgfx::LovyanGFX& gfx) const {
     if (!_has_hub || !_hub.active || !_hub.pixels) {
         return;
@@ -176,17 +428,6 @@ float AssetFaceRuntime::subdial_angle(SubdialRole role, const AnalogClockState& 
 
 void AssetFaceRuntime::draw_fast_hands(lgfx::LGFX_Device& gfx, const AnalogClockState& state,
                                        bool partial_update) const {
-    if (_has_second) {
-        if (partial_update && _has_shown_second) {
-            composite_hand_on_panel(gfx, _second, _pivot_x, _pivot_y, state.second_angle, true,
-                                      _shown_second_angle);
-        } else {
-            composite_hand_on_panel(gfx, _second, _pivot_x, _pivot_y, state.second_angle, false, 0.0f);
-        }
-    }
-    if (!state.draw_chrono) {
-        return;
-    }
     AnalogClockState prev = state;
     prev.chrono_elapsed_ms = _has_shown_chrono ? _shown_chrono_ms : state.chrono_elapsed_ms;
     for (uint8_t i = 0; i < _subdial_count; ++i) {
@@ -194,12 +435,30 @@ void AssetFaceRuntime::draw_fast_hands(lgfx::LGFX_Device& gfx, const AnalogClock
         if (!sd.hand.active) {
             continue;
         }
+        if (!state.draw_chrono && sd.role != SubdialRole::WallSecond) {
+            continue;
+        }
         const float a1 = subdial_angle(sd.role, state);
-        if (partial_update && _has_shown_chrono) {
+        const bool chrono_partial = partial_update && _has_shown_chrono &&
+                                    sd.role != SubdialRole::WallSecond;
+        if (chrono_partial) {
             const float a0 = subdial_angle(sd.role, prev);
             composite_hand_on_panel(gfx, sd.hand, sd.x, sd.y, a1, true, a0);
+        } else if (sd.role == SubdialRole::WallSecond && partial_update && _has_shown_second) {
+            composite_hand_on_panel(gfx, sd.hand, sd.x, sd.y, a1, true, _shown_second_angle);
         } else {
             composite_hand_on_panel(gfx, sd.hand, sd.x, sd.y, a1, false, 0.0f);
+        }
+    }
+    // Centre second sweeps across subdials — draw after chrono / wall-second subdial hands.
+    if (_has_second) {
+        int sx = 0;
+        int sy = 0;
+        second_rotation_pivot(sx, sy);
+        if (partial_update && _has_shown_second) {
+            composite_hand_on_panel(gfx, _second, sx, sy, state.second_angle, true, _shown_second_angle);
+        } else {
+            composite_hand_on_panel(gfx, _second, sx, sy, state.second_angle, false, 0.0f);
         }
     }
 }
@@ -240,6 +499,12 @@ bool AssetFaceRuntime::rebuild_static(const AnalogClockState& state) {
     lgfx::LGFX_Sprite layer;
     layer.setColorDepth(lgfx::color_depth_t::rgb565_2Byte);
     layer.setBuffer(_static, 240, 240, lgfx::color_depth_t::rgb565_2Byte);
+    if (_has_digital) {
+        layer.clearClipRect();
+        draw_digital_on_layer(layer, state.wall);
+        // drawString narrows clip rect; hands must render to full 240×240 static layer.
+        layer.clearClipRect();
+    }
     auto draw_on_static = [&](const HandBuffer& hand, float angle_deg) {
         if (!hand.active || !hand.pixels) {
             return;
@@ -353,6 +618,7 @@ void AssetFaceRuntime::unload() {
     free_hand(_minute);
     free_hand(_second);
     free_hand(_hub);
+    free_hand(_weather);
     for (uint8_t i = 0; i < _subdial_count; ++i) {
         free_hand(_subdials[i].hand);
     }
@@ -361,6 +627,10 @@ void AssetFaceRuntime::unload() {
     _asset_index = -1;
     _has_second = false;
     _has_hub = false;
+    _has_digital = false;
+    _has_weather = false;
+    _digital_meta = {};
+    _weather_meta = {};
     _has_shown_second = false;
     _has_shown_chrono = false;
 }
@@ -440,8 +710,22 @@ bool AssetFaceRuntime::load(int asset_index, const AssetFaceMeta* meta) {
     _asset_index = asset_index;
     _pivot_x = meta->pivot_x;
     _pivot_y = meta->pivot_y;
+    _second_dial_pivot_x = kDialPivotUseFace;
+    _second_dial_pivot_y = kDialPivotUseFace;
     _has_second = meta->has_second();
     _has_hub = meta->has_hub();
+    _has_digital = meta->has_digital_readout();
+    _has_weather = meta->has_weather_icon();
+    if (_has_digital) {
+        _digital_meta = meta->digital;
+    } else {
+        _digital_meta = {};
+    }
+    if (_has_weather) {
+        _weather_meta = meta->weather;
+    } else {
+        _weather_meta = {};
+    }
     _subdial_count = meta->subdial_count;
 
     size_t offset = kPackHeaderSize + kDialBytes;
@@ -455,6 +739,8 @@ bool AssetFaceRuntime::load(int asset_index, const AssetFaceMeta* meta) {
             unload();
             return false;
         }
+        _second_dial_pivot_x = meta->second.dial_pivot_x;
+        _second_dial_pivot_y = meta->second.dial_pivot_y;
     }
     for (uint8_t i = 0; i < _subdial_count; ++i) {
         if (!load_hand_chunk(meta->blob, offset, meta->subdials[i].hand, _subdials[i].hand)) {
@@ -471,6 +757,21 @@ bool AssetFaceRuntime::load(int asset_index, const AssetFaceMeta* meta) {
             return false;
         }
     }
+    if (_has_weather) {
+        WatchFaceHandMeta wm{};
+        wm.width = meta->weather.sheet_w;
+        wm.height = meta->weather.sheet_h;
+        wm.pivot_x = (int16_t)(meta->weather.sheet_w / 2);
+        wm.pivot_y = (int16_t)(meta->weather.sheet_h / 2);
+        wm.offset_deg = 0;
+        wm.kind = WatchFaceHandKind::Hour;
+        wm.dial_pivot_x = kDialPivotUseFace;
+        wm.dial_pivot_y = kDialPivotUseFace;
+        if (!load_hand_chunk(meta->blob, offset, wm, _weather)) {
+            unload();
+            return false;
+        }
+    }
 
     if (!ensure_static()) {
         Serial.printf("[ASSET] loaded %s heap=%u (no static; 1 Hz fallback)\n", meta->id,
@@ -481,11 +782,52 @@ bool AssetFaceRuntime::load(int asset_index, const AssetFaceMeta* meta) {
     return true;
 }
 
+void AssetFaceRuntime::present_digital_compositor(lgfx::LGFX_Device& gfx, const AnalogClockState& state,
+                                                  bool force_full) {
+    const bool wall_stale = state.hour != _static_hour || state.minute != _static_minute;
+    if (!rebuild_static(state)) {
+        blit_dial_from_flash(gfx);
+        gfx.clearClipRect();
+        draw_digital_on_layer(gfx, state.wall);
+        gfx.clearClipRect();
+        draw_weather_icon(gfx);
+        draw_hand(gfx, _hour, bake_hour_angle(state.hour, state.minute));
+        draw_hand(gfx, _minute, bake_minute_angle(state.minute));
+        if (_has_hub) {
+            draw_hub(gfx);
+        }
+        draw_fast_hands(gfx, state, false);
+        remember_shown(state);
+        return;
+    }
+
+    int sx = 0;
+    int sy = 0;
+    int sw = 0;
+    int sh = 0;
+    const bool partial_second = !force_full && _has_shown_second;
+    second_hand_dirty_union(state, partial_second, sx, sy, sw, sh);
+
+    if (force_full || !_has_shown_second || wall_stale) {
+        gfx.pushImage(0, 0, 240, 240, _static);
+    }
+
+    push_readout_bands_excluding(gfx, sx, sy, sw, sh);
+    draw_weather_icon(gfx);
+    draw_fast_hands(gfx, state, partial_second);
+    remember_shown(state);
+}
+
 void AssetFaceRuntime::present(lgfx::LGFX_Device& gfx, const AnalogClockState& state, bool force_full) {
     if (!_blob) {
         gfx.fillScreen(TFT_BLACK);
         gfx.setTextColor(TFT_WHITE);
         gfx.drawString("No face", 120, 120);
+        return;
+    }
+
+    if (_static && _has_digital) {
+        present_digital_compositor(gfx, state, force_full);
         return;
     }
 
@@ -516,6 +858,7 @@ void AssetFaceRuntime::present(lgfx::LGFX_Device& gfx, const AnalogClockState& s
     if (_has_hub) {
         draw_hub(gfx);
     }
+    draw_weather_icon(gfx);
     draw_fast_hands(gfx, state, false);
     remember_shown(state);
 }

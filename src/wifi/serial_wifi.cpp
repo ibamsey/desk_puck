@@ -1,6 +1,7 @@
 #include "wifi/serial_wifi.h"
 
 #include "time/wall_clock.h"
+#include "weather/local_weather.h"
 #include "wifi/wifi_station.h"
 #include "wifi/wifi_store.h"
 
@@ -153,6 +154,42 @@ static void cmd_time_status() {
     }
 }
 
+static void cmd_weather_show() {
+    float lat = 0;
+    float lon = 0;
+    local_weather_get_location(lat, lon);
+    LocalWeatherNow w;
+    local_weather_now(w);
+    Serial.printf("[WEATHER] loc=%.4f,%.4f ready=%s", lat, lon, local_weather_is_ready() ? "yes" : "no");
+    if (w.valid) {
+        Serial.printf(" %dC %s hum=%u wind=%ukm/h code=%d age=%lums", (int)w.temp_c, w.summary,
+                      (unsigned)w.humidity_pct, (unsigned)w.wind_kmh, (int)w.weather_code,
+                      (unsigned long)w.fetched_age_ms);
+    }
+    const char* err = local_weather_last_error();
+    if (err[0] != '\0') {
+        Serial.printf(" err=%s", err);
+    }
+    Serial.println();
+}
+
+static void cmd_weather_set(const char* args) {
+    while (*args == ' ') {
+        args++;
+    }
+    float lat = 0;
+    float lon = 0;
+    if (sscanf(args, "%f %f", &lat, &lon) != 2) {
+        Serial.println("[WEATHER] usage: weather set <lat> <lon>");
+        return;
+    }
+    if (!local_weather_set_location(lat, lon)) {
+        Serial.println("[WEATHER] set failed (range or NVS)");
+        return;
+    }
+    Serial.printf("[WEATHER] ok %.4f,%.4f (refresh pending)\n", lat, lon);
+}
+
 static void cmd_tz_set(const char* tz) {
     while (*tz == ' ') {
         tz++;
@@ -191,10 +228,18 @@ static void dispatch_line(char* line) {
         Serial.printf("[TZ] %s\n", wall_clock_tz_posix());
     } else if (strncmp(line, "time status", 11) == 0) {
         cmd_time_status();
+    } else if (strncmp(line, "weather show", 12) == 0) {
+        cmd_weather_show();
+    } else if (strncmp(line, "weather set ", 12) == 0) {
+        cmd_weather_set(line + 12);
+    } else if (strncmp(line, "weather refresh", 15) == 0) {
+        local_weather_request_refresh();
+        Serial.println("[WEATHER] refresh queued");
     } else if (strncmp(line, "help", 4) == 0) {
         Serial.println("[CMD] wifi list | wifi add SSID pass | wifi add \"S\" \"p\"");
         Serial.println("[CMD] wifi remove SSID | wifi status | wifi scan");
         Serial.println("[CMD] tz set POSIX | tz show | time status | help");
+        Serial.println("[CMD] weather show | weather set lat lon | weather refresh");
     } else {
         Serial.println("[CMD] unknown (try help)");
     }

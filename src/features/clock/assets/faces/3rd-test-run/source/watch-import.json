@@ -1,0 +1,17 @@
+{
+  "source_watch": "3rd-test-run.watch",
+  "watchmaker_name": "3rd test run.",
+  "author": "It'sJayRS1",
+  "features": "12h Time,Analog,Battery Level,Charging Status,Compass,Date,Digital,GIF,Tap Actions,Weather",
+  "wm_canvas": 512,
+  "hand_assets": {
+    "hour": ".img10.png",
+    "minute": ".img11.png",
+    "second": ".img12.png"
+  },
+  "subdial_assets": {},
+  "notes": [
+    "live digital readout from WatchMaker text layers",
+    "weather icon grid 3x3 at desk (120, 73)"
+  ]
+}

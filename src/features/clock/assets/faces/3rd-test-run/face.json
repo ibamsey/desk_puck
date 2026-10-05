@@ -1,0 +1,65 @@
+{
+  "id": "3rd-test-run",
+  "name": "3rd test run.",
+  "version": 1,
+  "pivot": {
+    "x": 120,
+    "y": 120
+  },
+  "hands": {
+    "hour": {
+      "file": "hour.png",
+      "length_px": 70,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 13,
+        "y": 72
+      }
+    },
+    "minute": {
+      "file": "minute.png",
+      "length_px": 85,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 12,
+        "y": 87
+      }
+    },
+    "second": {
+      "file": "second.png",
+      "length_px": 79,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 12,
+        "y": 80
+      },
+      "optional": true
+    }
+  },
+  "behaviour": {
+    "show_second_hand": true,
+    "digital_readout": {
+      "show_time": true,
+      "show_date": true,
+      "time_x": 120,
+      "time_y": 168,
+      "date_x": 120,
+      "date_y": 151,
+      "time_color": "0x2F7F",
+      "date_color": "0x2F7F",
+      "bg_color": "0x0000",
+      "time_text_size": 3,
+      "date_text_size": 2,
+      "time_format": "12h_ampm",
+      "date_format": "weekday_month_day"
+    }
+  },
+  "weather_icon": {
+    "file": "weather_icons.png",
+    "grid_cols": 3,
+    "grid_rows": 3,
+    "x": 120,
+    "y": 73,
+    "display_size": 54
+  }
+}

@@ -28,10 +28,12 @@ faces/<slug>/                  →  tools/watch_face_pack.py     →  generated/
 
 | Face | Prep (optional) | Pack |
 |------|-----------------|------|
-| **demo** | (packer can generate placeholders) | always |
-| **aurora** | `tools/faces/aurora/prepare.py` | always |
 | **steampunk** | `tools/faces/steampunk/generate.py` | always |
 | **classic-chrono** | `tools/faces/classic-chrono/generate.py` | always |
+| **wayfinder** | `tools/faces/wayfinder/generate.py` | always |
+| **bell-ross** | `tools/faces/bell-ross/generate.py` (WatchMaker `.watch` in `source/`) | always |
+
+**WatchMaker drop folder:** put `.watch` files in [`watch_files/`](../../../watch_files/) and run `python tools/watch_import.py`.
 
 From repo root:
 
@@ -40,9 +42,11 @@ python tools/watch_face_pack.py
 # or: pio run  (runs packer via extra_script)
 ```
 
-## Adding a face (e.g. steampunk)
+## Adding a face
 
-1. Create `faces/steampunk/` with `face.json` and PNGs (see [docs/authoring-spec.md](../docs/authoring-spec.md)).
-2. Put generation output and notes in `faces/steampunk/source/` only.
-3. Add a prep script under `tools/faces/steampunk/` if you need JPG → PNG conversion.
-4. Rebuild — no C++ registry edit.
+1. Copy `faces/_template/` to `faces/<slug>/` (no `_` prefix).
+2. Add PNGs + edit `face.json` ([authoring-spec.md](../docs/authoring-spec.md)).
+3. **Live time/date (optional):** set `behaviour.digital_readout` — do not put ticking digits in `dial.png`. Layout/colours in JSON; see [digital-readout-compositing.md](../docs/digital-readout-compositing.md) and [wayfinder/face.json](faces/wayfinder/face.json).
+4. Put generation output and notes in `faces/<slug>/source/` only.
+5. Add `tools/faces/<slug>/generate.py` (or `prepare.py`) if you need asset prep.
+6. Rebuild — packer updates `generated/`; no C++ registry edit.

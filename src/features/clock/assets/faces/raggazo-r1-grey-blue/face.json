@@ -1,0 +1,68 @@
+{
+  "id": "raggazo-r1-grey-blue",
+  "name": "Raggazo R1 Grey Blue",
+  "version": 1,
+  "pivot": {
+    "x": 120,
+    "y": 120
+  },
+  "hands": {
+    "hour": {
+      "file": "hour.png",
+      "length_px": 62,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 8,
+        "y": 63
+      },
+      "anchor": {
+        "x": 122,
+        "y": 122
+      }
+    },
+    "minute": {
+      "file": "minute.png",
+      "length_px": 91,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 8,
+        "y": 92
+      },
+      "anchor": {
+        "x": 122,
+        "y": 122
+      }
+    },
+    "second": {
+      "file": "second.png",
+      "length_px": 88,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 5,
+        "y": 89
+      },
+      "anchor": {
+        "x": 123,
+        "y": 123
+      },
+      "optional": true
+    }
+  },
+  "behaviour": {
+    "show_second_hand": true,
+    "digital_readout": {
+      "show_time": false,
+      "show_date": true,
+      "date_format": "day",
+      "date_x": 120,
+      "date_y": 189,
+      "date_color": "0x0000",
+      "date_text_size": 2,
+      "time_x": 120,
+      "time_y": 108,
+      "time_color": "0xFFFF",
+      "time_text_size": 1,
+      "bg_color": "0x0000"
+    }
+  }
+}

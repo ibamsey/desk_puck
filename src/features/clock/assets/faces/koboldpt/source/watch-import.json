@@ -1,0 +1,22 @@
+{
+  "source_watch": "koboldpt.watch",
+  "watchmaker_name": "Kobold Phantom Tactical",
+  "author": "krystofetbob ",
+  "features": "12h Time,Analog,Animation,Battery Level,Date,Digital,Stopwatch,Tap Actions",
+  "wm_canvas": 512,
+  "hand_assets": {
+    "hour": ".img21101.png",
+    "minute": ".img21114.png",
+    "second": ".img21110.png"
+  },
+  "subdial_assets": {
+    "wall_second": ".img21111.png",
+    "chrono_minute": ".img21118.png",
+    "chrono_second": ".img21116.png"
+  },
+  "notes": [
+    "subdial wall_second: dial pivot desk (124, 116), sprite pivot (6, 86), asset .img21111.png",
+    "subdial chrono_minute: dial pivot desk (120, 71), sprite pivot (6, 25), asset .img21118.png",
+    "subdial chrono_second: dial pivot desk (120, 168), sprite pivot (6, 25), asset .img21116.png"
+  ]
+}

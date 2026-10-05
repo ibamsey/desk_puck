@@ -24,11 +24,11 @@ A round puck on the desk is naturally a **timepiece**: no rectangle pretending t
 ### On-screen
 
 - **Primary:** Analogue watch faces with hour, minute, and second hands.
-- **Watch faces (shipped):** Procedural **Midnight** (boot default); asset **Demo**, **Aurora**, **Steampunk**, **Classic Chrono**, plus any other slugs under `assets/faces/`. Swipe up/down cycles faces.
+- **Watch faces (shipped):** Procedural **Midnight** (boot default); asset faces under `assets/faces/` (e.g. **Steampunk**, **Classic Chrono**, **Wayfinder**, WatchMaker imports). Swipe up/down cycles faces.
 - **Chronograph:** On **Classic Chrono**, tap start/stop, double-tap reset — [chronograph.md](chronograph.md).
-- **More asset faces:** Add `assets/faces/<slug>/`, run `python tools/watch_face_pack.py` from repo root (or rebuild); see [watch-faces.md](watch-faces.md), [authoring-spec.md](authoring-spec.md), [assets/README.md](../assets/README.md).
+- **More asset faces:** Copy `assets/faces/_template/`, run `python tools/watch_face_pack.py`; see [watch-faces.md](watch-faces.md), [authoring-spec.md](authoring-spec.md), [digital-readout-compositing.md](digital-readout-compositing.md), [assets/README.md](../assets/README.md).
 - **Layout:** Centred inside the round safe area (~98 px dial radius); avoid critical detail in the outer ~20 px.
-- **Refresh:** Background on face change. Procedural faces colour-erase hands. Asset faces restore dirty rects from a frozen static layer, then redraw the second / chrono hands.
+- **Refresh:** Static compositor on asset faces and Classic Digital; live digital readout via `face.json` ([Wayfinder](../assets/faces/wayfinder/)). Second hand patches on top; digits under hour/minute.
 
 ### Interaction
 

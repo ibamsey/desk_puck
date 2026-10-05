@@ -15,9 +15,9 @@ Up to **three subdials** (roles determine what each hand shows):
 ```json
 "behaviour": { "chronograph": true },
 "subdials": [
-  { "role": "wall_second", "file": "sub_wall_sec.png", "subdial": { "x": 52, "y": 120 } },
-  { "role": "chrono_minute", "file": "sub_chrono_min.png", "subdial": { "x": 120, "y": 52 } },
-  { "role": "chrono_second", "file": "sub_chrono_sec.png", "subdial": { "x": 120, "y": 168 } }
+  { "role": "wall_second", "file": "sub_wall_sec.png", "subdial": { "x": 120, "y": 168 } },
+  { "role": "chrono_minute", "file": "sub_chrono_min.png", "subdial": { "x": 52, "y": 120 } },
+  { "role": "chrono_second", "file": "sub_chrono_sec.png", "subdial": { "x": 168, "y": 120 } }
 ]
 ```
 

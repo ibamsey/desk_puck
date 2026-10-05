@@ -1,6 +1,6 @@
 # AI agent prompt — new asset watch face
 
-Use this document when an **AI coding agent** (or human + image model) should add a **new shipped watch face** to Desk Puck. Full rules: [authoring-spec.md](authoring-spec.md). Binary layout: [pack-format.md](pack-format.md).
+Use this document when an **AI coding agent** (or human + image model) should add a **new shipped watch face** to Desk Puck. Full rules: [authoring-spec.md](authoring-spec.md). Binary layout: [pack-format.md](pack-format.md). Live time/date: [digital-readout-compositing.md](digital-readout-compositing.md).
 
 ---
 
@@ -30,6 +30,8 @@ HARD RULES
 4. Max hand bounds (packer enforces): hour ≤48×110, minute ≤48×110, second ≤48×110.
 5. id in face.json MUST equal folder name <slug>.
 6. Do NOT edit C++ or clock_faces.cpp — registration is automatic via watch_face_pack.py.
+7. Live digital time/date: set behaviour.digital_readout (never bake ticking digits into dial.png).
+   Z-order is dial → digital → hour/minute/hub → second (firmware compositor). See digital-readout-compositing.md.
 
 face.json MINIMAL SCHEMA (extend only with documented fields)
 {
@@ -42,8 +44,11 @@ face.json MINIMAL SCHEMA (extend only with documented fields)
     "minute": { "file": "minute.png", "length_px": 78, "offset_deg": 0 },
     "second": { "file": "second.png", "length_px": 88, "offset_deg": 0, "optional": true }
   },
-  "hub": { "file": "hub.png" }
+  "hub": { "file": "hub.png" },
+  "behaviour": { "show_second_hand": true, "digital_readout": false }
 }
+
+Optional live digital: "digital_readout": true  OR object with time_y, date_y, time_color, date_color, bg_color, time_text_size, date_text_size (see wayfinder/face.json).
 
 WORKFLOW
 1. Choose <slug> and <Display Name>. Confirm slug is not already used under assets/faces/.
@@ -77,6 +82,7 @@ Requirements:
 - [ ] Second hand: yes / no
 - [ ] Roman numerals / indices / none on dial
 - [ ] Any fixed text (brand at 6 o'clock): [none / text]
+- [ ] Live digital HH:MM:SS + date: yes / no (if yes, calm centre on dial; use behaviour.digital_readout)
 
 Use the agent system prompt in src/features/clock/docs/ai-watch-face-agent.md.
 Save outputs under src/features/clock/assets/faces/[slug]/.
@@ -126,6 +132,7 @@ Replace `[STYLE]` with the same phrase in every prompt so hands match the dial.
 | Alpha | Hands and hub use straight alpha PNG |
 | Manifest | `id` === folder name; `length_px` roughly matches tip distance from pivot |
 | Pack | `python tools/watch_face_pack.py` from repo root |
+| Digital | If enabled: `digital_readout` in face.json; no digits in dial.png; verify second sweeps over text |
 | Flash | `pio run -t upload` (COM5 per platformio.ini unless user says otherwise) |
 
 ---
@@ -148,7 +155,25 @@ Replace `[STYLE]` with the same phrase in every prompt so hands match the dial.
       "optional": true
     }
   },
-  "hub": { "file": "hub.png" }
+  "hub": { "file": "hub.png" },
+  "behaviour": { "show_second_hand": true, "digital_readout": false }
+}
+```
+
+With live digital (reference: `assets/faces/wayfinder/face.json`):
+
+```json
+"behaviour": {
+  "show_second_hand": true,
+  "digital_readout": {
+    "time_y": 108,
+    "date_y": 132,
+    "time_color": "0xFFFF",
+    "date_color": "0x9CD3",
+    "bg_color": "0x1084",
+    "time_text_size": 2,
+    "date_text_size": 1
+  }
 }
 ```
 
@@ -159,7 +184,8 @@ Replace `[STYLE]` with the same phrase in every prompt so hands match the dial.
 | What | Path |
 |------|------|
 | New face folder | `src/features/clock/assets/faces/<slug>/` |
-| Template notes | `src/features/clock/assets/faces/_template/README.md` |
+| Template | `src/features/clock/assets/faces/_template/` (`face.json` + README) |
+| Digital compositing | `src/features/clock/docs/digital-readout-compositing.md` |
 | Packer | `tools/watch_face_pack.py` or `src/features/clock/tools/watch_face_pack.py` |
 | Generated firmware blobs | `src/features/clock/generated/` (do not hand-edit) |
 | Optional procedural example | `src/features/clock/tools/faces/steampunk/generate.py` |
@@ -170,5 +196,5 @@ After pack, the face appears in the app when the user swipes **up/down** on the 
 
 ## When not to use this prompt
 
-- **Procedural faces** (vector C++ in `faces/face_*.cpp`) — different path; see [watch-faces.md](watch-faces.md).
+- **Procedural faces** (vector C++ in `faces/face_*.cpp`) — use `use_static_compositor` + `draw_digital_overlay`; see [digital-readout-compositing.md](digital-readout-compositing.md) and [face_classic_digital.cpp](../faces/face_classic_digital.cpp).
 - **Editing an existing slug** — same deliverables, overwrite PNGs in that folder only; re-run pack + upload.

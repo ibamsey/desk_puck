@@ -1,0 +1,42 @@
+{
+  "id": "wayfinder",
+  "name": "Wayfinder",
+  "version": 1,
+  "pivot": {
+    "x": 120,
+    "y": 120
+  },
+  "hands": {
+    "hour": {
+      "file": "hour.png",
+      "length_px": 52,
+      "offset_deg": 0
+    },
+    "minute": {
+      "file": "minute.png",
+      "length_px": 78,
+      "offset_deg": 0
+    },
+    "second": {
+      "file": "second.png",
+      "length_px": 88,
+      "offset_deg": 0,
+      "optional": true
+    }
+  },
+  "hub": {
+    "file": "hub.png"
+  },
+  "behaviour": {
+    "show_second_hand": true,
+    "digital_readout": {
+      "time_y": 108,
+      "date_y": 132,
+      "time_color": "0xFFFF",
+      "date_color": "0x9CD3",
+      "bg_color": "0x1084",
+      "time_text_size": 2,
+      "date_text_size": 1
+    }
+  }
+}

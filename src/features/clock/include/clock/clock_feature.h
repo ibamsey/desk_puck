@@ -4,6 +4,7 @@
 #include "clock/asset_face.h"
 #include "clock/chronograph.h"
 #include "clock/clock_faces.h"
+#include "clock/procedural_compositor.h"
 #include "feature.h"
 
 class ClockFeature : public Feature {
@@ -31,6 +32,9 @@ private:
     int _last_hour = -1;
     int _last_minute = -1;
     int _last_second = -1;
+    int _last_static_minute = -1;
+    int _last_static_day = -1;
+    int _last_static_second = -1;
     AnalogClockState _last_drawn{};
     bool _static_drawn = false;
     bool _force_full = true;
@@ -40,6 +44,7 @@ private:
     unsigned long _second_smooth_last_draw_ms = 0;
     unsigned long _face_gesture_cooldown_until_ms = 0;
     AssetFaceRuntime _asset;
+    ProceduralCompositor _procedural;
     int _loaded_face_index = -1;
     Chronograph _chrono;
     unsigned long _chrono_last_tap_ms = 0;

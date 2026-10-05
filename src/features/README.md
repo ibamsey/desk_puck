@@ -33,7 +33,7 @@ PlatformIO excludes `assets/`, `docs/`, and `tools/` from compilation via `build
 |------|------|
 | `src/app/` | Feature registry, navigation ([ADR-01](../../adr/ADR-01-touch-navigation-and-app-shell.md)) |
 | `src/display/`, `src/input/` | LovyanGFX, CST816S |
-| `src/wifi/`, `src/time/` | Network and wall clock used by diary / clock |
+| `src/wifi/`, `src/time/`, `src/weather/` | Network, SNTP wall clock, local Open-Meteo conditions |
 | `include/` | Cross-cutting headers (`config.h`, `feature.h`, …) |
 
 ## Adding a feature
