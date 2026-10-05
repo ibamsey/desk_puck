@@ -40,6 +40,9 @@
 
 #define CLOCK_TICK_INTERVAL_MS 200
 
+/** Asset/procedural second-hand redraw cadence while the clock face is active. */
+#define CLOCK_SECOND_SMOOTH_INTERVAL_MS 20
+
 // ============================================================================
 // Debug
 // ============================================================================

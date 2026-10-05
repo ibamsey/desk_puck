@@ -9,14 +9,16 @@ class AssetFaceRuntime {
 public:
     bool load(int asset_index, const AssetFaceMeta* meta);
     void unload();
-    /** Frees the optional smooth-tick underlay (e.g. when leaving the clock feature). */
-    void release_underlay();
-    bool ensure_underlay();
-    bool is_loaded() const { return _dial != nullptr; }
+    bool is_loaded() const { return _blob != nullptr; }
     int loaded_asset_index() const { return _asset_index; }
 
-    void draw(lgfx::LGFX_Device& gfx, const AnalogClockState& state, ClockHandMask mask,
-              const AnalogClockState* prev_state);
+    /**
+     * One compositor path for every frame.
+     * _static is written only by rebuild_static(). Fast hands composite from
+     * _static into a RAM patch (rotate+AA) then one pushImage to the panel.
+     * A missing static layer never skips the second hand.
+     */
+    void present(lgfx::LGFX_Device& gfx, const AnalogClockState& state, bool force_full);
 
 private:
     struct HandBuffer {
@@ -41,31 +43,26 @@ private:
     void draw_hand(lgfx::LovyanGFX& gfx, const HandBuffer& hand, float angle_deg) const;
     void draw_hand_at(lgfx::LovyanGFX& gfx, const HandBuffer& hand, int pivot_x, int pivot_y,
                       float angle_deg) const;
+    void composite_hand_on_panel(lgfx::LGFX_Device& gfx, const HandBuffer& hand, int pivot_x, int pivot_y,
+                                 float angle_deg, bool has_prev, float prev_angle_deg) const;
+    bool ensure_hand_patch(size_t pixel_count) const;
     void draw_hub(lgfx::LovyanGFX& gfx) const;
+    void draw_fast_hands(lgfx::LGFX_Device& gfx, const AnalogClockState& state, bool partial_update) const;
     float subdial_angle(SubdialRole role, const AnalogClockState& state) const;
-    int hand_cover_radius(const HandBuffer& hand) const;
-    void blit_buffer_rect(lgfx::LGFX_Device& gfx, const uint16_t* src, int x, int y, int w, int h) const;
-    void restore_subdial_patch(lgfx::LGFX_Device& gfx, const LoadedSubdial& sd) const;
-    void rebuild_underlay(const AnalogClockState& state);
-    void second_sweep_union_rect(const AnalogClockState& state, const AnalogClockState& prev, int& ux,
-                                 int& uy, int& uw, int& uh) const;
-    void rect_union(int& ux, int& uy, int& uw, int& uh, int x, int y, int w, int h) const;
-    void unpaint_hand_from_background(lgfx::LGFX_Device& gfx, const HandBuffer& hand, int pivot_x, int pivot_y,
-                                      float angle_deg, const uint16_t* bg_rgb565) const;
-    void patch_underlay_hands(lgfx::LGFX_Device& gfx, const AnalogClockState& state, const AnalogClockState& prev,
-                              ClockHandMask mask) const;
-    void draw_second_sweep(lgfx::LGFX_Device& gfx, const AnalogClockState& state, const AnalogClockState& prev,
-                           bool draw_hub_cap) const;
-    void draw_center_wall_hands(lgfx::LovyanGFX& gfx, const AnalogClockState& state, bool hour, bool minute,
-                                bool second) const;
+    bool ensure_static();
+    bool rebuild_static(const AnalogClockState& state);
+    void blit_dial_from_flash(lgfx::LGFX_Device& gfx) const;
     void hand_dirty_rect(int pivot_x, int pivot_y, const HandBuffer& hand, float angle_deg, int& out_x,
                          int& out_y, int& out_w, int& out_h) const;
+    void clip_rect(int& x, int& y, int& w, int& h) const;
+    void rect_union(int& ux, int& uy, int& uw, int& uh, int x, int y, int w, int h) const;
+    void remember_shown(const AnalogClockState& state);
 
-    uint16_t* _dial = nullptr;
-    uint16_t* _underlay = nullptr;
-    bool _underlay_valid = false;
-    float _underlay_hour_angle = -999.0f;
-    float _underlay_minute_angle = -999.0f;
+    const uint8_t* _blob = nullptr;
+    uint16_t* _static = nullptr;
+    bool _static_valid = false;
+    int _static_hour = -1;
+    int _static_minute = -1;
     HandBuffer _hour;
     HandBuffer _minute;
     HandBuffer _second;
@@ -77,6 +74,12 @@ private:
     int _asset_index = -1;
     bool _has_second = false;
     bool _has_hub = false;
+    bool _has_shown_second = false;
+    float _shown_second_angle = 0.0f;
+    bool _has_shown_chrono = false;
+    unsigned long _shown_chrono_ms = 0;
+    mutable uint16_t* _hand_patch = nullptr;
+    mutable size_t _hand_patch_pixels = 0;
 };
 
 #endif // CLOCK_ASSET_FACE_H

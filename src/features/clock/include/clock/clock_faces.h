@@ -4,6 +4,8 @@
 #include "LGFX_config.h"
 
 struct AnalogClockState {
+    int hour = 0;
+    int minute = 0;
     float hour_angle;
     float minute_angle;
     float second_angle;

@@ -50,5 +50,5 @@ void loop() {
     diary_sync_poll();
 
     app_shell.tick(millis());
-    delay(10);
+    delay(5);
 }

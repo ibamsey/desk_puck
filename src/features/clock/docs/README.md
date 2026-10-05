@@ -28,7 +28,7 @@ A round puck on the desk is naturally a **timepiece**: no rectangle pretending t
 - **Chronograph:** On **Classic Chrono**, tap start/stop, double-tap reset — [chronograph.md](chronograph.md).
 - **More asset faces:** Add `assets/faces/<slug>/`, run `python tools/watch_face_pack.py` from repo root (or rebuild); see [watch-faces.md](watch-faces.md), [authoring-spec.md](authoring-spec.md), [assets/README.md](../assets/README.md).
 - **Layout:** Centred inside the round safe area (~98 px dial radius); avoid critical detail in the outer ~20 px.
-- **Refresh:** Background on face change; hands updated each second (procedural faces use colour erase; asset faces will redraw from a dial cache).
+- **Refresh:** Background on face change. Procedural faces colour-erase hands. Asset faces restore dirty rects from a frozen static layer, then redraw the second / chrono hands.
 
 ### Interaction
 
