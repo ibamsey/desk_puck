@@ -32,3 +32,6 @@ Thumbs.db
 # Google OAuth (copy from gcal_config.h.example)
 include/gcal/gcal_config_private.h
 src/features/diary/include/gcal/gcal_config_private.h
+
+# CCO tide API key (copy from tide_config_private.h.example)
+src/features/tide/include/tide/tide_config_private.h

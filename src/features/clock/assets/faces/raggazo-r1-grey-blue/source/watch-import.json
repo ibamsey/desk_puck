@@ -14,6 +14,7 @@
     "hour dial pivot (122, 122) \u2014 expected main face centre",
     "minute dial pivot (122, 122) \u2014 expected main face centre",
     "second dial pivot (123, 123) \u2014 expected main face centre",
-    "date window: live day (day) at desk y=189"
+    "live digital readout from WatchMaker text layers",
+    "digital readout font 'Roboto-Regular' (device uses bundled GFX font)"
   ]
 }

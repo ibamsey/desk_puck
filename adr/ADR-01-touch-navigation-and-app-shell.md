@@ -42,7 +42,7 @@ src/
 ├── display/
 │   └── display.cpp/h     LovyanGFX init, shared draw helpers
 ├── clock/                clock feature (shell + faces, …)
-└── <feature>/            one folder per shell feature (patterns, …)
+└── <feature>/            one folder per shell feature (clock, diary, …)
 ```
 
 `main.cpp` stays thin: init display and touch, construct shell, `loop()` → `touch_input.update()` → `app_shell.tick(now)`.

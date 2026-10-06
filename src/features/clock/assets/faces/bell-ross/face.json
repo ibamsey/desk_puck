@@ -1,6 +1,6 @@
 {
   "id": "bell-ross",
-  "name": "Bell & Ross BR S",
+  "name": "BELL & ROSS BR S WHITE CERAMIC",
   "version": 1,
   "pivot": {
     "x": 120,
@@ -9,40 +9,62 @@
   "hands": {
     "hour": {
       "file": "hour.png",
-      "length_px": 67,
-      "offset_deg": 0
+      "length_px": 61,
+      "offset_deg": 0,
+      "hand_pivot": {
+        "x": 9,
+        "y": 62
+      },
+      "anchor": {
+        "x": 122,
+        "y": 122
+      }
     },
     "minute": {
       "file": "minute.png",
-      "length_px": 97,
-      "offset_deg": 0
-    },
-    "second": {
-      "file": "second.png",
-      "length_px": 26,
+      "length_px": 80,
       "offset_deg": 0,
-      "anchor": {
-        "x": 120,
-        "y": 155
+      "hand_pivot": {
+        "x": 8,
+        "y": 82
       },
-      "optional": true
+      "anchor": {
+        "x": 122,
+        "y": 122
+      }
     }
   },
   "behaviour": {
-    "show_second_hand": true,
+    "show_second_hand": false,
+    "chronograph": true,
     "digital_readout": {
       "show_time": false,
       "show_date": true,
-      "date_format": "day",
-      "date_x": 167,
-      "date_y": 167,
-      "date_color": "0x4A69",
-      "date_text_size": 2,
       "time_x": 120,
       "time_y": 108,
+      "date_x": 167,
+      "date_y": 167,
       "time_color": "0xFFFF",
-      "time_text_size": 1,
-      "bg_color": "0x0000"
+      "date_color": "0x4A69",
+      "bg_color": "0x0000",
+      "time_text_size": 2,
+      "date_text_size": 2,
+      "date_format": "day"
     }
-  }
+  },
+  "subdials": [
+    {
+      "role": "chrono_second",
+      "file": "sub_chrono_second.png",
+      "subdial": {
+        "x": 120,
+        "y": 155
+      },
+      "hand_pivot": {
+        "x": 8,
+        "y": 32
+      },
+      "offset_deg": 0
+    }
+  ]
 }

@@ -78,9 +78,9 @@ Look for:
 
 - Boot shows **Clock** (analogue face; swipe **up** / **down** to cycle registered watch faces).
 
-- Swipe **left** / **right** to switch features (Clock ↔ Patterns ↔ **Diary**); swipe **down** from other features returns to Clock.
+- Swipe **left** / **right** to switch features; swipe **down** from other features returns to Clock.
 
-- On **Patterns**, tap for a new random layout; `[APP] feature: ...` lines on serial when the active feature changes.
+- `[APP] feature: ...` lines on serial when the active feature changes.
 
 
 

@@ -38,7 +38,21 @@
   },
   "behaviour": {
     "show_second_hand": true,
-    "chronograph": true
+    "chronograph": true,
+    "digital_readout": {
+      "show_time": false,
+      "show_date": true,
+      "time_x": 161,
+      "time_y": 120,
+      "date_x": 185,
+      "date_y": 120,
+      "time_color": "0xFFFF",
+      "date_color": "0xFFFF",
+      "bg_color": "0x0000",
+      "time_text_size": 1,
+      "date_text_size": 2,
+      "date_format": "split_weekday_day"
+    }
   },
   "subdials": [
     {

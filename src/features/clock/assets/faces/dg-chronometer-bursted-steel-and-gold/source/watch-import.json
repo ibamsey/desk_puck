@@ -17,6 +17,7 @@
     "subdial not mapped: {tz1rh} @ wm(0,-110)",
     "subdial wall_second: dial pivot desk (66, 120), sprite pivot (8, 31), asset .img4620.png",
     "subdial chrono_second: dial pivot desk (120, 172), sprite pivot (8, 31), asset .img4620.png",
-    "date window: live day (day) at desk y=120"
+    "live digital readout from WatchMaker text layers",
+    "digital readout font '4131341' (device uses bundled GFX font)"
   ]
 }

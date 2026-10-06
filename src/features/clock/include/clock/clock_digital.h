@@ -14,6 +14,8 @@ constexpr uint8_t kDigitalDateFormatDayDd = 0x04;
 constexpr uint8_t kDigitalDateFormatDayD = 0x08;
 constexpr uint8_t kDigitalTimeFormat12h = 0x10;
 constexpr uint8_t kDigitalDateFormatWeekdayMonthDay = 0x20;
+/** Weekday abbrev at time_x/y + day-of-month at date_x/y (WatchMaker split windows). */
+constexpr uint8_t kDigitalDateFormatSplitWeekdayDay = 0x40;
 
 /** "HH:MM" plus NUL (6 chars). */
 void format_time_hm(char* out, size_t out_len, const ClockWallTime& wall);
@@ -33,6 +35,9 @@ void format_day_dd(char* out, size_t out_len, const ClockWallTime& wall);
 /** "Mon Mar 05" (WatchMaker {ddw} {dnnn} {dd}). */
 void format_date_weekday_month_day(char* out, size_t out_len, const ClockWallTime& wall);
 
+/** Three-letter weekday, upper case (WatchMaker string.sub(...,{ddww}...,1,3)). */
+void format_weekday_abbrev_upper(char* out, size_t out_len, const ClockWallTime& wall);
+
 struct DigitalReadoutStyle {
     uint16_t time_color = 0x4208;
     uint16_t date_color = 0x3186;
@@ -51,12 +56,14 @@ struct DigitalReadoutStyle {
 
 /** Bounding boxes (max-width) of the time / date labels, for dirty-rect compositing. */
 void time_readout_rect(const DigitalReadoutStyle& style, int& x, int& y, int& w, int& h);
+void weekday_readout_rect(const DigitalReadoutStyle& style, int& x, int& y, int& w, int& h);
 void date_readout_rect(const DigitalReadoutStyle& style, int& x, int& y, int& w, int& h);
 
 /** Draw time + date centred above/below the dial hub (behind analogue hands). */
 void draw_time_date_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall,
                             const DigitalReadoutStyle& style);
 void draw_time_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall, const DigitalReadoutStyle& style);
+void draw_weekday_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall, const DigitalReadoutStyle& style);
 void draw_date_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall, const DigitalReadoutStyle& style);
 
 } // namespace clock_digital

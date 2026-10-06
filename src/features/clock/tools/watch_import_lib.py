@@ -138,6 +138,30 @@ def _layer_opacity(layer: ET.Element) -> int:
         return 0
 
 
+def _is_grayscale_mask(img: Image.Image) -> bool:
+    """True when layer PNG is a neutral mask (safe to apply WatchMaker ``color`` tint)."""
+    rgba = img.convert("RGBA")
+    step = max(1, min(rgba.width, rgba.height) // 64)
+    chroma_sum = 0
+    count = 0
+    px = rgba.load()
+    for y in range(0, rgba.height, step):
+        for x in range(0, rgba.width, step):
+            r, g, b, a = px[x, y]
+            if a < 16:
+                continue
+            count += 1
+            chroma_sum += max(r, g, b) - min(r, g, b)
+    return count > 64 and (chroma_sum / count) < 28.0
+
+
+def _image_for_dial_compose(zf: zipfile.ZipFile, layer: ET.Element) -> Image.Image:
+    img = _layer_image_for_blit(zf, layer)
+    if (layer.attrib.get("color") or "").strip() and _is_grayscale_mask(img):
+        img = apply_watchmaker_layer_tint(img, layer)
+    return img
+
+
 def apply_watchmaker_layer_tint(img: Image.Image, layer: ET.Element) -> Image.Image:
     """WatchMaker hand PNGs are usually white masks; layer ``color`` tints them (e.g. gold ebdb74)."""
     src = img.convert("RGBA")
@@ -473,11 +497,11 @@ def wm_text_size_to_desk(text_size: float, wm_size: int) -> int:
     return max(1, min(4, int(round(px / 6.0))))
 
 
-# WatchMaker live text tokens we map to firmware digital readout (not baked into dial).
-WM_DATE_TOKENS: dict[str, str] = {
-    "{dd}": "day",
-    "{d}": "day_unpadded",
-}
+# Roles for WatchMaker live text layers → firmware digital readout (not baked into dial).
+TEXT_ROLE_TIME = "time"
+TEXT_ROLE_DATE = "date"
+TEXT_ROLE_DAY = "day"
+TEXT_ROLE_WEEKDAY = "weekday"
 
 
 def first_gif_frame_path(path_attr: str) -> str:
@@ -518,29 +542,77 @@ def discover_weather_icon(root: ET.Element, wm_size: int) -> dict | None:
     return None
 
 
-def discover_watchmaker_digital_readout(root: ET.Element, wm_size: int) -> dict | None:
-    """Map WatchMaker live text layers ({dh}, {ddw}, …) → behaviour.digital_readout."""
-    time_layer: ET.Element | None = None
-    date_layer: ET.Element | None = None
+def _text_layer_role(expr: str) -> str | None:
+    """Classify a WatchMaker text expression (may include Lua string.sub wrappers)."""
+    raw = (expr or "").strip()
+    if not raw or "{" not in raw:
+        return None
+    if re.fullmatch(r"[0-9]+", raw):
+        return None
+    low = raw.lower()
+    if any(tok in low for tok in ("{dh}", "{th}", "{tm}")) or ("{drm}" in low and ":" in low):
+        return TEXT_ROLE_TIME
+    if "{ddww}" in low or re.search(r"\{dw\}", low):
+        return TEXT_ROLE_WEEKDAY
+    if "{ddw}" in low and "{dnnn}" in low:
+        return TEXT_ROLE_DATE
+    if "{ddz}" in low or re.fullmatch(r"\{dd\}", low) or re.fullmatch(r"\{d\}", low):
+        return TEXT_ROLE_DAY
+    if "{dd}" in low:
+        return TEXT_ROLE_DAY
+    if "{ddw}" in low or "{dnnn}" in low:
+        return TEXT_ROLE_DATE
+    return None
+
+
+def _text_layer_rank(layer: ET.Element) -> int:
+    """Prefer bright (non-dim) plain-colour layers over shader duplicates."""
+    rank = _layer_opacity(layer)
+    if layer.attrib.get("display", "bd") == "d":
+        rank -= 200
+    if layer.attrib.get("shader"):
+        rank -= 20
+    return rank
+
+
+def _pick_watchmaker_text_layers(root: ET.Element) -> dict[str, ET.Element]:
+    best: dict[str, tuple[int, ET.Element]] = {}
     for layer in root.findall("Layer"):
         if layer.attrib.get("type") != "text":
             continue
-        if layer.attrib.get("display", "bd") == "d":
+        role = _text_layer_role(layer.attrib.get("text", ""))
+        if role is None:
             continue
-        token = layer.attrib.get("text", "").strip().lower()
-        if not token:
-            continue
-        if any(t in token for t in ("{dh}", "{drh}", "{th}", "{tm}")):
-            time_layer = layer
-        if any(t in token for t in ("{ddw}", "{dnnn}", "{dd}", "{dw}")):
-            date_layer = layer
+        rank = _text_layer_rank(layer)
+        prev = best.get(role)
+        if prev is None or rank >= prev[0]:
+            best[role] = (rank, layer)
+    return {role: pair[1] for role, pair in best.items()}
 
-    if time_layer is None and date_layer is None:
-        return discover_watchmaker_date_readout(root, wm_size)
 
-    cfg: dict = {
-        "show_time": time_layer is not None,
-        "show_date": date_layer is not None,
+def _readout_color_from_layer(layer: ET.Element) -> str:
+    color = (layer.attrib.get("color") or "").strip()
+    if color:
+        return rgb565_from_wm_color(color)
+    grad = (layer.attrib.get("u_2") or "").strip()
+    if grad:
+        return rgb565_from_wm_color(grad)
+    return "0xFFFF"
+
+
+def _apply_readout_slot(cfg: dict, prefix: str, layer: ET.Element, wm_size: int) -> None:
+    px, py = dial_anchor_from_layer(layer, wm_size)
+    cfg[f"{prefix}_x"] = px
+    cfg[f"{prefix}_y"] = py
+    cfg[f"{prefix}_color"] = _readout_color_from_layer(layer)
+    ts = parse_wm_number(layer.attrib.get("text_size", "24"), 24)
+    cfg[f"{prefix}_text_size"] = wm_text_size_to_desk(ts, wm_size)
+
+
+def _digital_readout_defaults() -> dict:
+    return {
+        "show_time": False,
+        "show_date": False,
         "time_x": 120,
         "time_y": 108,
         "date_x": 120,
@@ -551,60 +623,47 @@ def discover_watchmaker_digital_readout(root: ET.Element, wm_size: int) -> dict 
         "time_text_size": 2,
         "date_text_size": 1,
     }
-    if time_layer is not None:
-        tx, ty = dial_anchor_from_layer(time_layer, wm_size)
-        cfg["time_x"] = tx
-        cfg["time_y"] = ty
-        cfg["time_color"] = rgb565_from_wm_color(time_layer.attrib.get("color", "ffffff"))
-        ts = parse_wm_number(time_layer.attrib.get("text_size", "24"), 24)
-        cfg["time_text_size"] = wm_text_size_to_desk(ts, wm_size)
-        if "{dh}" in time_layer.attrib.get("text", "").lower():
+
+
+def discover_watchmaker_digital_readout(root: ET.Element, wm_size: int) -> dict | None:
+    """Map WatchMaker live text layers ({dh}, {ddw}, {ddz}, …) → behaviour.digital_readout."""
+    layers = _pick_watchmaker_text_layers(root)
+    if not layers:
+        return None
+
+    cfg = _digital_readout_defaults()
+
+    if TEXT_ROLE_WEEKDAY in layers and TEXT_ROLE_DAY in layers:
+        cfg["show_time"] = False
+        cfg["show_date"] = True
+        cfg["date_format"] = "split_weekday_day"
+        _apply_readout_slot(cfg, "time", layers[TEXT_ROLE_WEEKDAY], wm_size)
+        _apply_readout_slot(cfg, "date", layers[TEXT_ROLE_DAY], wm_size)
+        return cfg
+
+    if TEXT_ROLE_TIME in layers:
+        cfg["show_time"] = True
+        _apply_readout_slot(cfg, "time", layers[TEXT_ROLE_TIME], wm_size)
+        if "{dh}" in layers[TEXT_ROLE_TIME].attrib.get("text", "").lower():
             cfg["time_format"] = "12h_ampm"
+
+    date_layer = layers.get(TEXT_ROLE_DATE)
+    if date_layer is None:
+        date_layer = layers.get(TEXT_ROLE_DAY)
     if date_layer is not None:
-        dx, dy = dial_anchor_from_layer(date_layer, wm_size)
-        cfg["date_x"] = dx
-        cfg["date_y"] = dy
-        cfg["date_color"] = rgb565_from_wm_color(date_layer.attrib.get("color", "ffffff"))
-        ds = parse_wm_number(date_layer.attrib.get("text_size", "24"), 24)
-        cfg["date_text_size"] = wm_text_size_to_desk(ds, wm_size)
+        cfg["show_date"] = True
+        _apply_readout_slot(cfg, "date", date_layer, wm_size)
         tok = date_layer.attrib.get("text", "").lower()
-        if "{ddw}" in tok and "{dnnn}" in tok:
+        if TEXT_ROLE_DATE in layers and "{ddw}" in tok and "{dnnn}" in tok:
             cfg["date_format"] = "weekday_month_day"
-        elif "{dd}" in tok:
+        elif re.fullmatch(r"\{d\}", tok.strip()):
+            cfg["date_format"] = "day_unpadded"
+        else:
             cfg["date_format"] = "day"
+
+    if not cfg["show_time"] and not cfg["show_date"]:
+        return None
     return cfg
-
-
-def discover_watchmaker_date_readout(root: ET.Element, wm_size: int) -> dict | None:
-    """First bright-mode date token layer ({dd}, {d}) → digital_readout for import."""
-    for layer in root.findall("Layer"):
-        if layer.attrib.get("type") != "text":
-            continue
-        if layer.attrib.get("display", "bd") == "d":
-            continue
-        token = layer.attrib.get("text", "").strip().lower()
-        date_format = WM_DATE_TOKENS.get(token)
-        if not date_format:
-            continue
-        x = parse_wm_number(layer.attrib.get("x", "0"))
-        y = parse_wm_number(layer.attrib.get("y", "0"))
-        date_x, date_y = wm_coord_to_desk(x, y, wm_size)
-        text_size = parse_wm_number(layer.attrib.get("text_size", "24"), 24)
-        return {
-            "show_time": False,
-            "show_date": True,
-            "date_format": date_format,
-            "date_x": date_x,
-            "date_y": date_y,
-            "date_color": rgb565_from_wm_color(layer.attrib.get("color", "ffffff")),
-            "date_text_size": wm_text_size_to_desk(text_size, wm_size),
-            "time_x": 120,
-            "time_y": 108,
-            "time_color": "0xFFFF",
-            "time_text_size": 1,
-            "bg_color": "0x0000",
-        }
-    return None
 
 
 class WatchCompositor:
@@ -699,6 +758,7 @@ class WatchCompositor:
         )
 
     def draw_markers(self, canvas: Image.Image, layer: ET.Element) -> None:
+        """WatchMaker marker rings: square ticks rotated to point along the radius."""
         radius = parse_wm_number(layer.attrib.get("radius", "0"))
         count = max(1, int(layer.attrib.get("m_count", 1)))
         mw = max(1, int(round(parse_wm_number(layer.attrib.get("m_width", "4"), 4))))
@@ -706,16 +766,23 @@ class WatchCompositor:
         base_rot = parse_wm_number(layer.attrib.get("rotation", "0"))
         ox = parse_wm_number(layer.attrib.get("x", "0"))
         oy = parse_wm_number(layer.attrib.get("y", "0"))
-        color = hex_rgb(layer.attrib.get("color", "ffffff"))
-        draw = ImageDraw.Draw(canvas)
+        tr, tg, tb, ta = hex_rgb(layer.attrib.get("color", "ffffff"))
+        layer_alpha = _layer_opacity(layer)
+        tick_a = max(0, min(255, int(round(ta * layer_alpha / 100.0))))
+        if tick_a <= 0:
+            return
+        tick_fill = (tr, tg, tb, tick_a)
         for i in range(count):
             ang = math.radians(base_rot + i * (360.0 / count) - 90)
             mx = self.cx + ox + math.cos(ang) * radius
             my = self.cy + oy + math.sin(ang) * radius
-            draw.rectangle(
-                (mx - mw / 2, my - mh / 2, mx + mw / 2 - 1, my + mh / 2 - 1),
-                fill=color,
-            )
+            tick = Image.new("RGBA", (mw, mh), tick_fill)
+            # Default tick is vertical; rotate so the long edge aligns with the radial at ang.
+            tick_angle_deg = math.degrees(ang + math.pi / 2.0)
+            tick = tick.rotate(-tick_angle_deg, resample=Image.Resampling.BICUBIC, expand=True)
+            px = int(round(mx - tick.width / 2.0))
+            py = int(round(my - tick.height / 2.0))
+            canvas.alpha_composite(tick, (px, py))
 
     def draw_text_layer(self, canvas: Image.Image, layer: ET.Element, zf: zipfile.ZipFile) -> None:
         text = layer.attrib.get("text", "")
@@ -772,7 +839,7 @@ class WatchCompositor:
             elif t == "image":
                 path = layer.attrib.get("path", "")
                 try:
-                    img = load_image(zf, path)
+                    img = _image_for_dial_compose(zf, layer)
                 except KeyError:
                     continue
                 self.blit_image(
@@ -1068,6 +1135,11 @@ def import_watch_file(
     if digital_readout:
         manifest["behaviour"]["digital_readout"] = digital_readout
         notes.append("live digital readout from WatchMaker text layers")
+        for layer in _pick_watchmaker_text_layers(root).values():
+            font = (layer.attrib.get("font") or "").strip()
+            if font:
+                notes.append(f"digital readout font {font!r} (device uses bundled GFX font)")
+                break
 
     weather_cfg = discover_weather_icon(root, wm_size)
     if weather_cfg:

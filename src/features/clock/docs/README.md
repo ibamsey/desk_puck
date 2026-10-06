@@ -33,7 +33,7 @@ A round puck on the desk is naturally a **timepiece**: no rectangle pretending t
 ### Interaction
 
 - **Swipe up / swipe down:** Next / previous watch face (while on clock).
-- **Swipe left / right:** Other app features (e.g. patterns).
+- **Swipe left / right:** Other app features (Diary, Cube, …).
 - **Later:** Tap for 12/24 h, brightness, timezone; NTP time sync.
 
 ### Edge cases

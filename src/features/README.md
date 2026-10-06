@@ -23,8 +23,8 @@ PlatformIO excludes `assets/`, `docs/`, and `tools/` from compilation via `build
 |--------|------------|--------|
 | [clock/](clock/) | Clock | Procedural + asset watch faces; [clock/docs/README.md](clock/docs/README.md) |
 | [diary/](diary/) | Diary | Google Calendar agenda; OAuth branding in `diary/assets/branding/` |
-| [patterns/](patterns/) | Patterns | Nav / demo screens |
 | [cube/](cube/) | Cube | Tumbling shaded wireframe cube |
+| [waves/](waves/) | Waves | Dawlish CCO live wave height / period animation |
 | [whatsapp/](whatsapp/) | WhatsApp | Latest message previews via LAN bridge; [whatsapp/docs/README.md](whatsapp/docs/README.md) |
 
 ## Shared infrastructure (not features)

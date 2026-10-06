@@ -61,6 +61,7 @@ DIGITAL_DATE_FORMAT_DAY_DD = 0x04
 DIGITAL_DATE_FORMAT_DAY_D = 0x08
 DIGITAL_TIME_FORMAT_12H = 0x10
 DIGITAL_DATE_FORMAT_WEEKDAY_MONTH_DAY = 0x20
+DIGITAL_DATE_FORMAT_SPLIT_WEEKDAY_DAY = 0x40
 
 
 def digital_flags_from_json(raw: dict) -> int:
@@ -77,13 +78,20 @@ def digital_flags_from_json(raw: dict) -> int:
             flags &= ~DIGITAL_FLAG_SHOW_DATE
     fmt = raw.get("date_format")
     if fmt:
-        flags &= ~(DIGITAL_DATE_FORMAT_DAY_DD | DIGITAL_DATE_FORMAT_DAY_D | DIGITAL_DATE_FORMAT_WEEKDAY_MONTH_DAY)
+        flags &= ~(
+            DIGITAL_DATE_FORMAT_DAY_DD
+            | DIGITAL_DATE_FORMAT_DAY_D
+            | DIGITAL_DATE_FORMAT_WEEKDAY_MONTH_DAY
+            | DIGITAL_DATE_FORMAT_SPLIT_WEEKDAY_DAY
+        )
         if fmt == "day":
             flags |= DIGITAL_DATE_FORMAT_DAY_DD
         elif fmt == "day_unpadded":
             flags |= DIGITAL_DATE_FORMAT_DAY_D
         elif fmt == "weekday_month_day":
             flags |= DIGITAL_DATE_FORMAT_WEEKDAY_MONTH_DAY
+        elif fmt == "split_weekday_day":
+            flags |= DIGITAL_DATE_FORMAT_SPLIT_WEEKDAY_DAY
     if raw.get("time_format") == "12h_ampm":
         flags |= DIGITAL_TIME_FORMAT_12H
     return flags & 0xFF

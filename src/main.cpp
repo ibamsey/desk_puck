@@ -6,6 +6,8 @@
 #include "diary/gcal_auth.h"
 #include "display.h"
 #include "time/wall_clock.h"
+#include "tide/tide_feed.h"
+#include "waves/wave_feed.h"
 #include "weather/local_weather.h"
 #include "touch_input.h"
 #include "wifi/serial_wifi.h"
@@ -31,6 +33,8 @@ void setup() {
     wifi_station_begin();
     wall_clock_begin();
     local_weather_begin();
+    tide_feed_begin();
+    wave_feed_begin();
     serial_wifi_begin();
     gcal_auth_begin();
     diary_sync_begin();
@@ -49,6 +53,8 @@ void loop() {
     wifi_station_poll();
     wall_clock_poll();
     local_weather_poll();
+    tide_feed_poll();
+    wave_feed_poll();
     gcal_auth_poll();
     diary_sync_poll();
 

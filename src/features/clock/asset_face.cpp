@@ -323,7 +323,13 @@ void AssetFaceRuntime::push_readout_bands_excluding(lgfx::LGFX_Device& gfx, int 
 
     BandRect pieces[kMaxBandPieces];
     int n = 0;
-    if (style.flags & clock_digital::kDigitalShowTime) {
+    if (style.flags & clock_digital::kDigitalDateFormatSplitWeekdayDay) {
+        clock_digital::weekday_readout_rect(style, time_band.x, time_band.y, time_band.w, time_band.h);
+        n = band_pieces_excluding(time_band, exclude, pieces, kMaxBandPieces);
+        for (int i = 0; i < n; ++i) {
+            push_band_patch(gfx, pieces[i].x, pieces[i].y, pieces[i].w, pieces[i].h);
+        }
+    } else if (style.flags & clock_digital::kDigitalShowTime) {
         clock_digital::time_readout_rect(style, time_band.x, time_band.y, time_band.w, time_band.h);
         n = band_pieces_excluding(time_band, exclude, pieces, kMaxBandPieces);
         for (int i = 0; i < n; ++i) {

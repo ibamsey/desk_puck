@@ -1,0 +1,7 @@
+#ifndef TIDE_TIDE_CONFIG_PRIVATE_H
+#define TIDE_TIDE_CONFIG_PRIVATE_H
+
+/** Copy to tide_config_private.h (gitignored) and set your CCO API key. */
+#define TIDE_CCO_API_KEY "your-api-key-here"
+
+#endif // TIDE_TIDE_CONFIG_PRIVATE_H

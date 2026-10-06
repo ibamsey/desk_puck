@@ -2,6 +2,7 @@
 
 #include "clock/clock_draw.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -82,9 +83,32 @@ void format_date_weekday_month_day(char* out, size_t out_len, const ClockWallTim
     snprintf(out, out_len, "%s %s %02d", weekday_short(wall.weekday), month_short(wall.month), wall.day);
 }
 
+void format_weekday_abbrev_upper(char* out, size_t out_len, const ClockWallTime& wall) {
+    if (!out || out_len < 4) {
+        return;
+    }
+    const char* src = weekday_short(wall.weekday);
+    for (int i = 0; i < 3 && out_len > (size_t)i; ++i) {
+        out[i] = (char)toupper((unsigned char)src[i]);
+    }
+    if (out_len >= 4) {
+        out[3] = '\0';
+    }
+}
+
+void weekday_readout_rect(const DigitalReadoutStyle& style, int& x, int& y, int& w, int& h) {
+    const int max_chars = 3;
+    w = max_chars * 6 * style.time_text_size + 8;
+    h = 8 * style.time_text_size + 4;
+    x = style.time_x - w / 2;
+    y = style.time_y - h / 2;
+}
+
 void date_readout_rect(const DigitalReadoutStyle& style, int& x, int& y, int& w, int& h) {
     int max_chars = 12;
-    if (style.flags & kDigitalDateFormatWeekdayMonthDay) {
+    if (style.flags & kDigitalDateFormatSplitWeekdayDay) {
+        max_chars = 2;
+    } else if (style.flags & kDigitalDateFormatWeekdayMonthDay) {
         max_chars = 13;
     } else if (style.flags & kDigitalDateFormatDayDd) {
         max_chars = 2;
@@ -134,9 +158,29 @@ void draw_time_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall, const Di
     lcd.drawString(time_buf, style.time_x, style.time_y);
 }
 
+void draw_weekday_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall, const DigitalReadoutStyle& style) {
+    char wd_buf[8];
+    format_weekday_abbrev_upper(wd_buf, sizeof(wd_buf), wall);
+
+    lcd.setTextDatum(textdatum_t::middle_center);
+    int wx = 0;
+    int wy = 0;
+    int ww = 0;
+    int wh = 0;
+    weekday_readout_rect(style, wx, wy, ww, wh);
+    if (style.clear_background) {
+        lcd.fillRect(wx, wy, ww, wh, style.bg_color);
+    }
+    lcd.setTextColor(style.time_color, style.bg_color);
+    lcd.setTextSize(style.time_text_size);
+    lcd.drawString(wd_buf, style.time_x, style.time_y);
+}
+
 void draw_date_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall, const DigitalReadoutStyle& style) {
     char date_buf[20];
-    if (style.flags & kDigitalDateFormatWeekdayMonthDay) {
+    if (style.flags & kDigitalDateFormatSplitWeekdayDay) {
+        format_day_dd(date_buf, sizeof(date_buf), wall);
+    } else if (style.flags & kDigitalDateFormatWeekdayMonthDay) {
         format_date_weekday_month_day(date_buf, sizeof(date_buf), wall);
     } else if (style.flags & kDigitalDateFormatDayD) {
         snprintf(date_buf, sizeof(date_buf), "%d", wall.day);
@@ -162,6 +206,13 @@ void draw_date_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall, const Di
 
 void draw_time_date_readout(lgfx::LovyanGFX& lcd, const ClockWallTime& wall,
                             const DigitalReadoutStyle& style) {
+    if (style.flags & kDigitalDateFormatSplitWeekdayDay) {
+        draw_weekday_readout(lcd, wall, style);
+        if (style.flags & kDigitalShowDate) {
+            draw_date_readout(lcd, wall, style);
+        }
+        return;
+    }
     if (style.flags & kDigitalShowTime) {
         draw_time_readout(lcd, wall, style);
     }

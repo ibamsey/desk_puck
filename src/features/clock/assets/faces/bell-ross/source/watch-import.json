@@ -6,11 +6,16 @@
   "wm_canvas": 512,
   "hand_assets": {
     "hour": ".img4419.png",
-    "minute": ".img4418.png",
-    "second": ".img4421.png"
+    "minute": ".img4418.png"
+  },
+  "subdial_assets": {
+    "chrono_second": ".img4421.png"
   },
   "notes": [
-    "second hand dial anchor {'x': 120, 'y': 155} (WatchMaker x/y + cc)",
-    "date window: live day (day) at desk y=167"
+    "hour dial pivot (122, 122) \u2014 expected main face centre",
+    "minute dial pivot (122, 122) \u2014 expected main face centre",
+    "subdial chrono_second: dial pivot desk (120, 155), sprite pivot (8, 32), asset .img4421.png",
+    "live digital readout from WatchMaker text layers",
+    "digital readout font '10' (device uses bundled GFX font)"
   ]
 }

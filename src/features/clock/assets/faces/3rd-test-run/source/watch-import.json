@@ -12,6 +12,7 @@
   "subdial_assets": {},
   "notes": [
     "live digital readout from WatchMaker text layers",
+    "digital readout font 'Roboto-Regular' (device uses bundled GFX font)",
     "weather icon grid 3x3 at desk (120, 73)"
   ]
 }

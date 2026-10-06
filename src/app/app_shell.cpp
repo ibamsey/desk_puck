@@ -4,18 +4,21 @@
 #include "config.h"
 #include "diary/diary_feature.h"
 #include "cube/cube_feature.h"
-#include "patterns/patterns_feature.h"
+#include "tide/tide_feature.h"
+#include "waves/wave_feature.h"
 
 static ClockFeature s_clock;
-static PatternsFeature s_patterns;
 static DiaryFeature s_diary;
 static CubeFeature s_cube;
+static TideFeature s_tide;
+static WaveFeature s_waves;
 
 static Feature* s_registry[] = {
     &s_clock,
-    &s_patterns,
     &s_diary,
     &s_cube,
+    &s_tide,
+    &s_waves,
 };
 
 bool AppShell::begin(Display& display) {

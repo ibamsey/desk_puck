@@ -6,7 +6,6 @@ Product features are implemented under **`src/features/<name>/`**. Each folder h
 |---------|-----------|----------------|
 | **Clock** | [src/features/clock/docs/README.md](../../src/features/clock/docs/README.md) | [src/features/clock/](../../src/features/clock/) |
 | **Diary** | [src/features/diary/docs/README.md](../../src/features/diary/docs/README.md) | [src/features/diary/](../../src/features/diary/) |
-| **Patterns** | (inline in source) | [src/features/patterns/](../../src/features/patterns/) |
 | **Cube** | (inline in source) | [src/features/cube/](../../src/features/cube/) |
 | **WhatsApp** | [src/features/whatsapp/docs/README.md](../../src/features/whatsapp/docs/README.md) | [src/features/whatsapp/](../../src/features/whatsapp/) (planning) |
 

@@ -36,8 +36,7 @@ desk_puck/
 │   ├── LGFX_config.h GC9A01 + SPI (from HomePuck bring-up)
 │   ├── app/          app shell, feature registry
 │   ├── display/      LovyanGFX init (shared)
-│   ├── clock/        clock feature
-│   └── patterns/     patterns feature (demo)
+│   └── features/     shell features (clock, diary, …)
 ├── docs/
 ├── platformio.ini
 ├── AGENTS.md         guidance for AI assistants

@@ -38,7 +38,7 @@ The puck becomes a **calm agenda tile**: no notifications, no phone unlock—jus
 
 
 
-- **Entry:** Swipe left/right from Clock or Patterns until Diary is active ([ADR-01](../../../adr/ADR-01-touch-navigation-and-app-shell.md)).
+- **Entry:** Swipe left/right from Clock until Diary is active ([ADR-01](../../../adr/ADR-01-touch-navigation-and-app-shell.md)).
 
 - **Exit:** Swipe left/right to other features; swipe down returns to Clock (home).
 

@@ -17,6 +17,8 @@
   "notes": [
     "subdial wall_second: dial pivot desk (124, 116), sprite pivot (6, 86), asset .img21111.png",
     "subdial chrono_minute: dial pivot desk (120, 71), sprite pivot (6, 25), asset .img21118.png",
-    "subdial chrono_second: dial pivot desk (120, 168), sprite pivot (6, 25), asset .img21116.png"
+    "subdial chrono_second: dial pivot desk (120, 168), sprite pivot (6, 25), asset .img21116.png",
+    "live digital readout from WatchMaker text layers",
+    "digital readout font 'Roboto-Regular' (device uses bundled GFX font)"
   ]
 }

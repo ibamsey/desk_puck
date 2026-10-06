@@ -21,8 +21,7 @@ src/
 ├── wifi/, time/, weather/     Shared services
 └── features/                  One folder per product feature ([features/README.md](src/features/README.md))
     ├── clock/                 code, include/, assets/, tools/, docs/, generated/
-    ├── diary/
-    └── patterns/
+    └── diary/
 
 include/                       Cross-cutting only (config.h, feature.h, app_shell.h, …)
 ```
