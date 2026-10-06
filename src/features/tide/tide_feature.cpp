@@ -4,6 +4,7 @@
 #include "clock/wall_time.h"
 #include "tide/tide_gauge.h"
 #include "tide/tide_feed.h"
+#include "tide/tide_time.h"
 
 #include <stdio.h>
 #include <time.h>

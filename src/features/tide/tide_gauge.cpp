@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "tide/tide_feed.h"
+#include "tide/tide_time.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -27,6 +28,8 @@ constexpr int kObsStepSec = 10 * 60;
 constexpr uint8_t kMaxMarks = 16;
 /** Fade to transparent shortly beyond the 2nd extreme in each direction. */
 constexpr int kExtremeFadeSec = 40 * 60;
+/** Empty arc left on the 24h ring between past and future colour fields. */
+constexpr int kTargetDialGapSec = 2 * 3600;
 constexpr int kFallbackSpanSec = 6 * 3600;
 
 constexpr uint16_t kBg = 0x0841;
@@ -66,6 +69,8 @@ struct TimeWindow {
     time_t past_fade_before = 0;
     time_t future_end = 0;
     time_t future_fade_after = 0;
+    time_t past_third_extreme = 0;
+    bool has_past_third = false;
     bool valid = false;
 };
 
@@ -135,12 +140,6 @@ uint16_t blend565(uint16_t fg, uint16_t bg, float a) {
     return (uint16_t)((r << 11) | (g << 5) | b);
 }
 
-float seconds_of_day_local(time_t epoch) {
-    struct tm tm;
-    localtime_r(&epoch, &tm);
-    return (float)(tm.tm_hour * 3600 + tm.tm_min * 60 + tm.tm_sec);
-}
-
 float time_to_angle_deg(float sec_of_day) {
     while (sec_of_day >= 86400.0f) {
         sec_of_day -= 86400.0f;
@@ -200,22 +199,22 @@ float series_height_at(const TideSeries& series, time_t epoch) {
     if (series.count == 0) {
         return NAN;
     }
-    if (epoch <= series.points[0].epoch_utc) {
+    if (epoch <= series.points[0].epoch) {
         return series.points[0].height_m;
     }
     const TideSample& last = series.points[series.count - 1];
-    if (epoch >= last.epoch_utc) {
+    if (epoch >= last.epoch) {
         return last.height_m;
     }
     for (uint16_t i = 1; i < series.count; i++) {
         const TideSample& a = series.points[i - 1];
         const TideSample& b = series.points[i];
-        if (epoch <= b.epoch_utc) {
-            const float dt = (float)(b.epoch_utc - a.epoch_utc);
+        if (epoch <= b.epoch) {
+            const float dt = (float)(b.epoch - a.epoch);
             if (dt <= 0.0f) {
                 return b.height_m;
             }
-            const float f = (float)(epoch - a.epoch_utc) / dt;
+            const float f = (float)(epoch - a.epoch) / dt;
             return a.height_m + f * (b.height_m - a.height_m);
         }
     }
@@ -309,6 +308,20 @@ void dedupe_marks(TideEvent* events, uint8_t& n) {
     n = w;
 }
 
+void widen_window_for_dial_gap(TimeWindow& w) {
+    const time_t span = w.future_fade_after - w.past_fade_before;
+    if (span <= 0 || span >= 86400) {
+        return;
+    }
+    const time_t gap = 86400 - span;
+    if (gap <= (time_t)kTargetDialGapSec) {
+        return;
+    }
+    const time_t widen = gap - (time_t)kTargetDialGapSec;
+    w.past_fade_before -= widen / 2;
+    w.future_fade_after += widen - (widen / 2);
+}
+
 uint8_t collect_marks(const TideFeedSnapshot& snap, TideEvent* out, uint8_t max_out) {
     uint8_t n = 0;
     for (uint8_t i = 0; i < snap.hwlw_count && n < max_out; i++) {
@@ -330,7 +343,7 @@ uint8_t collect_marks(const TideFeedSnapshot& snap, TideEvent* out, uint8_t max_
         if (!hi && !is_local_min(snap.predicted, i)) {
             continue;
         }
-        out[n].epoch = p.epoch_utc;
+        out[n].epoch = p.epoch;
         out[n].height_m = p.height_m;
         out[n].is_high = hi;
         n++;
@@ -346,6 +359,7 @@ TimeWindow windows_from_extremes(const TideEvent* events, uint8_t n, time_t now)
         w.past_fade_before = w.past_start - kExtremeFadeSec;
         w.future_end = now + kFallbackSpanSec;
         w.future_fade_after = w.future_end + kExtremeFadeSec;
+        widen_window_for_dial_gap(w);
         w.valid = true;
         return w;
     }
@@ -382,6 +396,14 @@ TimeWindow windows_from_extremes(const TideEvent* events, uint8_t n, time_t now)
         w.future_end = now + kFallbackSpanSec;
     }
     w.future_fade_after = w.future_end + kExtremeFadeSec;
+
+    if (past_n >= 3) {
+        const uint8_t idx = past_n - 3;
+        w.past_third_extreme = past_epochs[idx];
+        w.has_past_third = true;
+    }
+
+    widen_window_for_dial_gap(w);
 
     w.valid = true;
     return w;
@@ -445,7 +467,7 @@ void draw_field_span(lgfx::LGFX_Device& gfx, const TideSeries& series, time_t no
         }
         const float u = height_norm(h, scale);
         const uint16_t color = field_color(u, slope_norm_at(series, t_mid, scale), alpha);
-        const float a0 = time_to_angle_deg(seconds_of_day_local(t0));
+        const float a0 = time_to_angle_deg(tide_time_seconds_of_day(t0));
         fill_wedge(gfx, (int)lroundf(band_radius(u)), kPlotInner, a0, a0 + kWedgeDeg, color);
     }
 }
@@ -459,6 +481,58 @@ void draw_past_field(lgfx::LGFX_Device& gfx, const TideFeedSnapshot& snap, time_
 void draw_future_field(lgfx::LGFX_Device& gfx, const TideFeedSnapshot& snap, time_t now,
                        const TimeWindow& win, const HeightScale& scale) {
     draw_field_span(gfx, snap.predicted, now, win, scale, true);
+}
+
+void draw_radial_to_dial(lgfx::LGFX_Device& gfx, float ang, uint16_t color, bool dotted) {
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
+    polar_xy(ang, (float)kPlotInner, x0, y0);
+    polar_xy(ang, (float)kPlotOuter, x1, y1);
+
+    if (!dotted) {
+        gfx.drawLine(x0, y0, x1, y1, color);
+        return;
+    }
+
+    const float dx = (float)(x1 - x0);
+    const float dy = (float)(y1 - y0);
+    const float len = sqrtf(dx * dx + dy * dy);
+    if (len < 4.0f) {
+        return;
+    }
+    const float ux = dx / len;
+    const float uy = dy / len;
+    constexpr float dash_on = 5.0f;
+    constexpr float dash_off = 4.0f;
+    float pos = 0.0f;
+    while (pos < len) {
+        const float seg_end = pos + dash_on;
+        const float draw_end = seg_end < len ? seg_end : len;
+        const int sx = x0 + (int)lroundf(ux * pos);
+        const int sy = y0 + (int)lroundf(uy * pos);
+        const int ex = x0 + (int)lroundf(ux * draw_end);
+        const int ey = y0 + (int)lroundf(uy * draw_end);
+        gfx.drawLine(sx, sy, ex, ey, color);
+        pos = seg_end + dash_off;
+    }
+}
+
+void draw_past_third_extreme(lgfx::LGFX_Device& gfx, const TimeWindow& win, time_t now) {
+    if (!win.has_past_third) {
+        return;
+    }
+    const float alpha = past_alpha(win.past_third_extreme, win, now);
+    if (alpha < 0.04f) {
+        const float ang = time_to_angle_deg(tide_time_seconds_of_day(win.past_third_extreme));
+        const uint16_t c = blend565(kDimLabel, kBg, 0.35f);
+        draw_radial_to_dial(gfx, ang, c, true);
+        return;
+    }
+    const float ang = time_to_angle_deg(tide_time_seconds_of_day(win.past_third_extreme));
+    const uint16_t c = blend565(kDimLabel, kBg, alpha * 0.45f);
+    draw_radial_to_dial(gfx, ang, c, true);
 }
 
 void draw_observed_continuum(lgfx::LGFX_Device& gfx, const TideSeries& obs, time_t now,
@@ -479,11 +553,11 @@ void draw_observed_continuum(lgfx::LGFX_Device& gfx, const TideSeries& obs, time
             break;
         }
         const float h = series_height_at(obs, t);
-        if (isnan(h) || t < obs.points[0].epoch_utc) {
+        if (isnan(h) || t < obs.points[0].epoch) {
             have_prev = false;
             continue;
         }
-        const float ang = time_to_angle_deg(seconds_of_day_local(t));
+        const float ang = time_to_angle_deg(tide_time_seconds_of_day(t));
         int x = 0;
         int y = 0;
         polar_xy(ang, band_radius(height_norm(h, scale)), x, y);
@@ -500,31 +574,28 @@ void draw_marks(lgfx::LGFX_Device& gfx, const TideEvent* events, uint8_t n, time
                 const TimeWindow& win, const HeightScale& scale) {
     for (uint8_t i = 0; i < n; i++) {
         const TideEvent& e = events[i];
+        if (win.has_past_third && e.epoch == win.past_third_extreme) {
+            continue;
+        }
         const bool future = e.epoch > now;
         float alpha = future ? future_alpha(e.epoch, win, now) : past_alpha(e.epoch, win, now);
-        if (e.epoch == now) {
-            alpha = 1.0f;
-        }
         if (alpha < 0.08f) {
             continue;
         }
 
         const float u = height_norm(e.height_m, scale);
-        const float r = band_radius(u);
-        const float ang = time_to_angle_deg(seconds_of_day_local(e.epoch));
+        const float r_dot = band_radius(u);
+        const float ang = time_to_angle_deg(tide_time_seconds_of_day(e.epoch));
 
-        int xi = 0;
-        int yi = 0;
-        int xo = 0;
-        int yo = 0;
-        polar_xy(ang, (float)kPlotInner, xi, yi);
-        polar_xy(ang, r, xo, yo);
-        gfx.drawLine(xi, yi, xo, yo, blend565(kLabelColor, kBg, alpha * 0.5f));
+        draw_radial_to_dial(gfx, ang, blend565(kLabelColor, kBg, alpha * 0.5f), false);
 
+        int xd = 0;
+        int yd = 0;
+        polar_xy(ang, r_dot, xd, yd);
         const uint16_t dot = blend565(rgb_to_565(phase_rgb(u)), kBg, alpha * 0.9f);
-        gfx.fillCircle(xo, yo, future ? 3 : 2, dot);
+        gfx.fillCircle(xd, yd, future ? 3 : 2, dot);
         if (future) {
-            gfx.drawCircle(xo, yo, 3, blend565(kLabelColor, kBg, alpha * 0.75f));
+            gfx.drawCircle(xd, yd, 3, blend565(kLabelColor, kBg, alpha * 0.75f));
         }
     }
 }
@@ -556,7 +627,7 @@ void draw_hour_ring(lgfx::LGFX_Device& gfx) {
 
 void draw_now_axis(lgfx::LGFX_Device& gfx, const TideFeedSnapshot& snap, time_t now,
                    const HeightScale& scale) {
-    const float ang = time_to_angle_deg(seconds_of_day_local(now));
+    const float ang = time_to_angle_deg(tide_time_seconds_of_day(now));
     int x0 = 0;
     int y0 = 0;
     int x1 = 0;
@@ -613,27 +684,36 @@ void draw_centre_readout(lgfx::LGFX_Device& gfx, const TideFeedSnapshot& snap, c
     const int hh = (int)(secs / 3600);
     const int mm = (int)((secs % 3600) / 60);
 
-    char line[12];
-    snprintf(line, sizeof(line), "%s %dh%02d", nx->is_high ? "HW" : "LW", hh, mm);
+    struct tm event_local;
+    localtime_r(&nx->epoch, &event_local);
+
+    char line[16];
+    snprintf(line, sizeof(line), "%s %02d:%02d", nx->is_high ? "HW" : "LW", event_local.tm_hour,
+             event_local.tm_min);
     gfx.setTextColor(rgb_to_565(phase_rgb(nx->is_high ? 1.0f : 0.0f)), kBg);
-    gfx.drawString(line, kCx, kCy - 12);
+    gfx.drawString(line, kCx, kCy - 14);
+
+    snprintf(line, sizeof(line), "in %dh%02d", hh, mm);
+    gfx.setTextColor(kDimLabel, kBg);
+    gfx.drawString(line, kCx, kCy - 2);
 
     snprintf(line, sizeof(line), "%.2fm", (double)nx->height_m);
     gfx.setTextColor(kLabelColor, kBg);
-    gfx.drawString(line, kCx, kCy);
+    gfx.drawString(line, kCx, kCy + 10);
 
     const float pred_h = series_height_at(snap.predicted, now);
     const float obs_h = series_height_at(snap.observed, now);
     if (!isnan(pred_h) && !isnan(obs_h) && snap.observed.count > 0) {
         snprintf(line, sizeof(line), "%+.2f", (double)(obs_h - pred_h));
         gfx.setTextColor(kObsColor, kBg);
-        gfx.drawString(line, kCx, kCy + 12);
+        gfx.drawString(line, kCx, kCy + 22);
     }
 }
 
 } // namespace
 
 void tide_polar_draw(lgfx::LGFX_Device& gfx, const TideFeedSnapshot& snap, const TidePolarContext& ctx) {
+    tide_time_sync_tz();
     gfx.fillScreen(kBg);
 
     HeightScale scale;
@@ -650,6 +730,7 @@ void tide_polar_draw(lgfx::LGFX_Device& gfx, const TideFeedSnapshot& snap, const
 
     draw_hour_ring(gfx);
     draw_marks(gfx, events, n, ctx.now_epoch, win, scale);
+    draw_past_third_extreme(gfx, win, ctx.now_epoch);
     draw_now_axis(gfx, snap, ctx.now_epoch, scale);
     draw_centre_readout(gfx, snap, events, n, ctx.now_epoch);
 

@@ -6,6 +6,9 @@
 
 void wall_clock_begin();
 
+/** Re-apply POSIX TZ to libc (GMT/BST + DST). Safe before localtime/mktime. */
+void wall_clock_apply_tz();
+
 /** Call each loop; starts SNTP when WiFi up. */
 void wall_clock_poll();
 

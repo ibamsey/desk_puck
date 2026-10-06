@@ -32,7 +32,8 @@
 #define TIDE_MAX_HWLW 16
 
 struct TideSample {
-    time_t epoch_utc = 0;
+    /** Unix instant (CCO date strings are GMT; display uses wall clock local TZ). */
+    time_t epoch = 0;
     float height_m = 0.0f;
 };
 

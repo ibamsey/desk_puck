@@ -71,6 +71,10 @@ void wall_clock_begin() {
     load_tz_nvs();
 }
 
+void wall_clock_apply_tz() {
+    apply_tz_env();
+}
+
 void wall_clock_poll() {
     const unsigned long now = millis();
 

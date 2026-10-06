@@ -1,6 +1,7 @@
 #include "tide/tide_feed.h"
 
 #include "tide/tide_secrets.h"
+#include "tide/tide_time.h"
 #include "wifi/wifi_station.h"
 
 #include <Arduino.h>
@@ -44,31 +45,6 @@ static void set_error(const char* msg) {
 
 static bool wifi_has_ip() {
     return wifi_station_is_connected() && WiFi.localIP()[0] != 0;
-}
-
-/** CCO date strings use station-local civil time (Exmouth), not UTC. */
-static time_t cco_date_to_epoch(const char* s) {
-    if (!s) {
-        return 0;
-    }
-    int y = 0;
-    int mo = 0;
-    int d = 0;
-    int h = 0;
-    int mi = 0;
-    int se = 0;
-    if (sscanf(s, "%4d%2d%2d#%2d%2d%2d", &y, &mo, &d, &h, &mi, &se) != 6) {
-        return 0;
-    }
-    struct tm tm = {};
-    tm.tm_year = y - 1900;
-    tm.tm_mon = mo - 1;
-    tm.tm_mday = d;
-    tm.tm_hour = h;
-    tm.tm_min = mi;
-    tm.tm_sec = se;
-    tm.tm_isdst = -1;
-    return mktime(&tm);
 }
 
 static bool parse_height_before(const char* body, const char* ts_key_pos, const char* height_key,
@@ -137,7 +113,7 @@ static void scrape_hwlw_pair(const char* body, const char* limit, const char* he
         date_buf[17] = '\0';
         float height_m = 0.0f;
         if (parse_height_before(body, key_pos, height_key, height_m)) {
-            upsert_hwlw(sink, cco_date_to_epoch(date_buf), height_m, is_high);
+            upsert_hwlw(sink, tide_time_from_cco_date(date_buf), height_m, is_high);
         }
     }
 }
@@ -154,10 +130,10 @@ static void scrape_hwlw(const char* text, size_t len, HwLwSink& sink) {
 static int compare_samples(const void* a, const void* b) {
     const TideSample* sa = static_cast<const TideSample*>(a);
     const TideSample* sb = static_cast<const TideSample*>(b);
-    if (sa->epoch_utc < sb->epoch_utc) {
+    if (sa->epoch < sb->epoch) {
         return -1;
     }
-    if (sa->epoch_utc > sb->epoch_utc) {
+    if (sa->epoch > sb->epoch) {
         return 1;
     }
     return 0;
@@ -212,10 +188,10 @@ static size_t scan_samples_chunk(char* buf, size_t len, TideSeries& out) {
         char date_buf[18];
         memcpy(date_buf, date, 17);
         date_buf[17] = '\0';
-        const time_t epoch = cco_date_to_epoch(date_buf);
+        const time_t epoch = tide_time_from_cco_date(date_buf);
         if (epoch > 0) {
             TideSample& pt = out.points[out.count++];
-            pt.epoch_utc = epoch;
+            pt.epoch = epoch;
             pt.height_m = strtof(val, nullptr);
         }
         cur = num_end;
@@ -304,23 +280,6 @@ static bool stream_scan_series(HTTPClient& http, TideSeries& out, HwLwSink* hwlw
     return true;
 }
 
-/**
- * CCO request timestamps share the frame of the `date` strings they return, so build
- * them the same way we parse them: local civil time.
- */
-static bool build_cco_timestamp(char* buf, size_t len, long offset_sec) {
-    time_t now = time(nullptr);
-    if (now <= 1700000000) {
-        return false;
-    }
-    now += offset_sec;
-    struct tm tm;
-    localtime_r(&now, &tm);
-    const int n = snprintf(buf, len, "%04d%02d%02d%02d%02d%02d", tm.tm_year + 1900, tm.tm_mon + 1,
-                           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-    return n > 0 && (size_t)n < len;
-}
-
 static bool http_fetch_series(const char* observations_kind, const char* ts, unsigned duration_hours,
                               TideSeries& out, bool required, HwLwSink* hwlw_sink) {
     static bool tls_inited = false;
@@ -363,8 +322,10 @@ static bool http_fetch_series(const char* observations_kind, const char* ts, uns
 }
 
 static bool fetch_observations() {
+    tide_time_sync_tz();
     char ts[16];
-    if (!build_cco_timestamp(ts, sizeof(ts), 0)) {
+    time_t now = time(nullptr);
+    if (now <= 1700000000 || !tide_time_format_cco_request(now, ts, sizeof(ts))) {
         set_error("no time sync");
         Serial.println("[TIDE] waiting for SNTP");
         return false;
@@ -383,9 +344,16 @@ static bool fetch_observations() {
 }
 
 static bool fetch_predictions() {
+    tide_time_sync_tz();
     // Forward window: a CCO call returns the `duration` hours ending at the timestamp.
     char ts[16];
-    if (!build_cco_timestamp(ts, sizeof(ts), (long)TIDE_FUTURE_HOURS * 3600L)) {
+    time_t now = time(nullptr);
+    if (now <= 1700000000) {
+        set_error("no time sync");
+        return false;
+    }
+    const time_t req = now + (time_t)TIDE_FUTURE_HOURS * 3600L;
+    if (!tide_time_format_cco_request(req, ts, sizeof(ts))) {
         set_error("no time sync");
         return false;
     }
@@ -424,12 +392,14 @@ static bool should_refresh(unsigned long now) {
 }
 
 void tide_feed_begin() {
+    tide_time_sync_tz();
     s_force_refresh = true;
     s_step = FetchStep::Idle;
     s_snap = TideFeedSnapshot{};
 }
 
 void tide_feed_poll() {
+    tide_time_sync_tz();
     const unsigned long now = millis();
 
     if (s_snap.valid && s_last_fetch_ms != 0) {
